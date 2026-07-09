@@ -39,8 +39,7 @@ header h1 span{color:var(--dim);font-size:11px;letter-spacing:1px;margin-left:6p
 .counter{display:flex;align-items:center;gap:8px;font-family:var(--mono)}
 .counter button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--accent);font-size:16px;cursor:pointer}
 .counter .n{min-width:20px;text-align:center;font-size:14px;color:var(--accent)}
-.steps{margin:8px 16px}
-.step{background:var(--card2);border:1px solid var(--line);border-radius:8px;margin:6px 0 6px 20px;padding:9px 12px;display:flex;align-items:center;gap:10px;font-size:13px}
+.step{background:var(--card2);border:1px solid var(--line);border-radius:8px;margin:6px 16px 6px 36px;padding:9px 12px;display:flex;align-items:center;gap:10px;font-size:13px}
 .section-label{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--dim);margin:16px 16px 4px}
 .ledger{margin:0 16px}
 .evt{font-family:var(--mono);font-size:11px;padding:8px 10px;border-left:2px solid var(--line);margin:6px 0;color:var(--dim);line-height:1.5}
@@ -48,10 +47,24 @@ header h1 span{color:var(--dim);font-size:11px;letter-spacing:1px;margin-left:6p
 .evt.agent{border-left-color:var(--warn);background:rgba(255,183,77,.04)}
 .evt.agent .who{color:var(--warn)}
 .evt .time{font-size:9px;color:var(--dim);opacity:.7}
-.empty{padding:30px 16px;text-align:center;color:var(--dim);font-size:13px}
+.empty{padding:30px 16px;text-align:center;color:var(--dim);font-size:13px;font-style:italic}
 .review{margin:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
 .review h3{font-family:var(--mono);font-size:12px;color:var(--warn);letter-spacing:1px;margin-bottom:8px}
 .review p{font-size:13px;line-height:1.6;color:var(--text)}
+.seg{display:flex;gap:0;margin:14px 16px 4px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg div{flex:1;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;padding:8px 0;color:var(--dim);cursor:pointer;background:var(--card2)}
+.seg div.on{color:var(--bg);background:var(--accent);font-weight:600}
+.stepper{display:flex;justify-content:center;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--dim);margin:8px 0 0}
+.stepper button{background:none;border:1px solid var(--line);border-radius:8px;color:var(--accent);width:30px;height:26px;cursor:pointer}
+table.board{width:calc(100% - 32px);margin:8px 16px;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+table.board th{text-align:left;color:var(--dim);font-size:10px;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:500}
+table.board td{padding:9px 8px;border-bottom:1px solid var(--card2);color:var(--text)}
+table.board td.num{text-align:right;color:var(--accent)}
+.cov{margin:6px 16px;display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.cov .dots{letter-spacing:3px;font-size:13px}
+.cov .dots .y{color:var(--ok)}
+.cov .dots .n{color:var(--line)}
+.spark{margin:8px 16px 20px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:440px;width:calc(100% - 32px);background:var(--card);border:1px solid var(--warn);border-radius:12px;padding:12px 16px;font-size:13px;line-height:1.5;z-index:99;box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
 .toast .tw{font-family:var(--mono);font-size:10px;letter-spacing:1px;margin-bottom:4px}
@@ -60,38 +73,29 @@ header h1 span{color:var(--dim);font-size:11px;letter-spacing:1px;margin-left:6p
 </style>
 </head>
 <body>
-<header><h1>HEARTH<span>v0 · phase 0</span></h1><div class="agent-tag" id="dateLabel"></div></header>
+<header><h1>HEARTH<span>v0.2 · phase 0</span></h1><div class="agent-tag" id="dateLabel"></div></header>
 <div class="actor-bar" id="actorBar"></div>
-<div class="tabs">
-  <div class="tab on" data-t="webapps">WEBAPPS</div>
-  <div class="tab" data-t="house">HOUSEHOLD</div>
-  <div class="tab" data-t="ledger">LEDGER</div>
-  <div class="tab" data-t="review">REVIEW</div>
-</div>
+<div class="tabs" id="tabBar"></div>
 <div id="view"></div>
 <div class="toast" id="toast"><div class="tw" id="toastWho"></div><div id="toastMsg"></div></div>
 <script>
 const ACTORS=[{id:'dad',n:'Dad',h:1},{id:'mom',n:'Mom',h:1},{id:'k1',n:'Kid 1',h:1},{id:'k2',n:'Kid 2',h:1},{id:'wren',n:'Wren',h:0},{id:'bartleby',n:'Bartleby',h:0}];
 const SEED_TASKS=[
- // webapps mission
  {id:'w1',m:'webapps',n:'Create GitHub repo for Hearth',blocked:'dad',done:true},
  {id:'w2',m:'webapps',n:'Drop fresh GitHub token into chat',blocked:'dad',done:true},
  {id:'w3',m:'webapps',n:'Build Phase 0 PWA',agent:'wren',done:true},
  {id:'w4',m:'webapps',n:'Deploy to Cloudflare',agent:'wren'},
  {id:'w5',m:'webapps',n:'Demo BOM Intelligence wireframe to first prospect',blocked:'dad'},
  {id:'w6',m:'webapps',n:'Family test of Hearth Phase 0',blocked:'dad'},
- // household — personal
  {id:'h1',m:'house',cat:'PERSONAL',n:'Bed made'},
  {id:'h2',m:'house',cat:'PERSONAL',n:'Floor cleared'},
  {id:'h3',m:'house',cat:'PERSONAL',n:'Bathroom tidied'},
- // shared
- {id:'h4',m:'house',cat:'SHARED',n:'Pets fed (dog + cat)'},
- {id:'h5',m:'house',cat:'SHARED',n:'Pet waste picked up'},
- {id:'h6',m:'house',cat:'SHARED',n:'Dog walked'},
- {id:'h7',m:'house',cat:'SHARED',n:'Dishes done'},
- {id:'h8',m:'house',cat:'SHARED',n:'Shoes & clothing put away'},
- {id:'h9',m:'house',cat:'SHARED',n:'General tidying'},
- // laundry multi-step countable
+ {id:'h4',m:'house',cat:'SHARED',shared:1,n:'Pets fed (dog + cat)'},
+ {id:'h5',m:'house',cat:'SHARED',shared:1,n:'Pet waste picked up'},
+ {id:'h6',m:'house',cat:'SHARED',shared:1,n:'Dog walked'},
+ {id:'h7',m:'house',cat:'SHARED',shared:1,n:'Dishes done'},
+ {id:'h8',m:'house',cat:'SHARED',shared:1,n:'Shoes & clothing put away'},
+ {id:'h9',m:'house',cat:'SHARED',shared:1,n:'General tidying'},
  {id:'L1',m:'house',cat:'LAUNDRY',n:'Get clothes from rooms',count:0},
  {id:'L2',m:'house',cat:'LAUNDRY',n:'Bring to laundry room',count:0},
  {id:'L3',m:'house',cat:'LAUNDRY',n:'Put in wash',count:0},
@@ -102,62 +106,84 @@ const SEED_TASKS=[
 const MISSIONS={webapps:{t:'SHIP THE WEB APPS',why:'Validate BOM Intelligence with a paying customer; build the family\'s task OS.',agent:'Wren'},house:{t:'RUN A HOUSE WE\'RE PROUD OF',why:'Shared ownership habits that outlast the chore list.',agent:'Bartleby'}};
 const WREN={done:["FINALLY. Was that so hard?! ...good work. NEXT.","YES! SHIPPED! Okay okay okay — what's next, what's NEXT?!","About time! I've been staring at that task so long my eye twitched."],
 blocked:["THAT TASK NEEDS *YOU*. Ninety seconds of work! NINETY! GO!","I can't do it, the butler can't do it — it's YOURS. Why is it still HERE?!","Every downstream task is WAITING. Do you hear me? WAITING."]};
-const BART={done:["Noted. The house is fractionally more civilized for it.","I shall record this act of diligence in the ledger. Well done.","Splendid. The dog appears less judgmental already."],
-undone:["I note the task remains, as tasks do, patiently unresolved.","I would prefer that it be done. But I merely observe."]};
+const BART={done:["Noted. The house is fractionally more civilized for it.","I shall record this act of diligence in the ledger. Well done.","Splendid. The dog appears less judgmental already."]};
 let state=load()||{tasks:SEED_TASKS,ledger:[
  {who:'wren',agent:1,msg:'Mission opened: SHIP THE WEB APPS. Repo exists. Token received. We are MOVING.',t:Date.now()-3600000},
  {who:'bartleby',agent:1,msg:'Mission opened: Run a House We\'re Proud Of. I have taken the liberty of preparing the day\'s list.',t:Date.now()-3500000},
  {who:'wren',agent:1,msg:'Phase 0 build complete. Deployment pending. I am watching the Cloudflare task. Closely.',t:Date.now()-60000},
 ],actor:'dad'};
-let tab='webapps';
+let tab='house', period='WEEK', dayOffset=0;
+if(state.actor==='dad')tab='webapps';
 function load(){try{return JSON.parse(localStorage.getItem('hearth-v0'))}catch(e){return null}}
 function save(){localStorage.setItem('hearth-v0',JSON.stringify(state))}
 function fmt(t){const d=new Date(t);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}
-function actorName(id){return ACTORS.find(a=>a.id===id).n}
-function log(who,msg,agent){state.ledger.unshift({who,msg,agent:agent?1:0,t:Date.now()});if(state.ledger.length>200)state.ledger.pop();save()}
+function actorName(id){const a=ACTORS.find(a=>a.id===id);return a?a.n:id}
+function log(who,msg,opts={}){state.ledger.unshift(Object.assign({who,msg,t:Date.now()},opts));if(state.ledger.length>500)state.ledger.pop();save()}
 function toast(who,msg){const t=document.getElementById('toast');t.className='toast show '+who;document.getElementById('toastWho').textContent=who.toUpperCase();document.getElementById('toastMsg').textContent=msg;clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),3500)}
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
 function toggle(id){
   const t=state.tasks.find(x=>x.id===id);t.done=!t.done;
   if(t.done){
-    log(state.actor,`completed "${t.n}"`);
+    log(state.actor,`completed "${t.n}"`,{type:'complete',task:t.id,m:t.m});
     const ag=t.m==='webapps'?'wren':'bartleby';
-    const line=ag==='wren'?pick(WREN.done):pick(BART.done);
-    log(ag,line,true);toast(ag,line);
-  }else{log(state.actor,`reopened "${t.n}"`)}
+    const line=pick(ag==='wren'?WREN.done:BART.done);
+    log(ag,line,{agent:1});toast(ag,line);
+  }else{log(state.actor,`reopened "${t.n}"`,{type:'reopen',task:t.id,m:t.m})}
   save();render();
 }
 function bump(id,d){
   const t=state.tasks.find(x=>x.id===id);t.count=Math.max(0,(t.count||0)+d);
-  if(d>0){log(state.actor,`logged "${t.n}" (×${t.count} today)`);
-    if(t.count===1){const line=pick(BART.done);log('bartleby',line,true);toast('bartleby',line)}}
+  if(d>0){log(state.actor,`logged "${t.n}" (×${t.count} today)`,{type:'count',task:t.id,m:t.m,qty:1});
+    if(t.count===1){const line=pick(BART.done);log('bartleby',line,{agent:1});toast('bartleby',line)}}
   save();render();
 }
-function nudge(id){const t=state.tasks.find(x=>x.id===id);const line=pick(WREN.blocked);log('wren',line+` [re: ${t.n}]`,true);toast('wren',line);save();render()}
+function nudge(id){const t=state.tasks.find(x=>x.id===id);const line=pick(WREN.blocked);log('wren',line+` [re: ${t.n}]`,{agent:1});toast('wren',line);save();render()}
+function dayKey(t){const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function periodRange(){
+  const now=new Date();
+  if(period==='DAY'){const d=new Date(now);d.setDate(d.getDate()+dayOffset);const s=new Date(d);s.setHours(0,0,0,0);const e=new Date(d);e.setHours(23,59,59,999);return[s.getTime(),e.getTime(),d]}
+  if(period==='WEEK'){const s=new Date(now);s.setDate(s.getDate()-6);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()]}
+  if(period==='MONTH'){const s=new Date(now);s.setDate(s.getDate()-29);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()]}
+  const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
+}
+function houseEvents(from,to){return state.ledger.filter(e=>e.type&&e.m==='house'&&e.t>=from&&e.t<=to)}
+function tally(actorId,from,to){
+  const ev=houseEvents(from,to).filter(e=>e.who===actorId);
+  const comp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
+  const cnt=ev.filter(e=>e.type==='count').reduce((s,e)=>s+(e.qty||1),0);
+  return{comp:Math.max(0,comp),cnt};
+}
+function streak(actorId){
+  let n=0;const d=new Date();
+  for(;;){const k=dayKey(d.getTime());
+    const hit=state.ledger.some(e=>e.type&&e.who===actorId&&(e.type==='complete'||e.type==='count')&&dayKey(e.t)===k);
+    if(hit){n++;d.setDate(d.getDate()-1)}else break;
+    if(n>3650)break;
+  }
+  return n;
+}
+function visibleTabs(){
+  const tabs=[];
+  if(state.actor==='dad')tabs.push(['webapps','WEBAPPS']);
+  tabs.push(['house','HOUSEHOLD'],['ledger','LEDGER'],['report','REPORT']);
+  return tabs;
+}
+function setActor(id){state.actor=id;if(tab==='webapps'&&id!=='dad')tab='house';save();render()}
 function render(){
   document.getElementById('dateLabel').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
-  document.getElementById('actorBar').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="actor ${state.actor===a.id?'on':''}" onclick="state.actor='${a.id}';save();render()">${a.n}</div>`).join('')+`<div class="actor" style="border-style:dashed;pointer-events:none">🤖 Wren · Bartleby</div>`;
-  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('on',el.dataset.t===tab));
+  document.getElementById('actorBar').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="actor ${state.actor===a.id?'on':''}" onclick="setActor('${a.id}')">${a.n}</div>`).join('')+`<div class="actor" style="border-style:dashed;pointer-events:none">🤖 Wren · Bartleby</div>`;
+  document.getElementById('tabBar').innerHTML=visibleTabs().map(([k,l])=>`<div class="tab ${tab===k?'on':''}" onclick="tab='${k}';render()">${l}</div>`).join('');
   const v=document.getElementById('view');
   if(tab==='ledger'){
     v.innerHTML=`<div class="section-label">APPEND-ONLY EVENT STREAM</div><div class="ledger">`+
       (state.ledger.length?state.ledger.map(e=>`<div class="evt ${e.agent?'agent':''}"><span class="who">${actorName(e.who).toUpperCase()}</span> ${e.msg}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
     return;
   }
-  if(tab==='review'){
-    const doneW=state.tasks.filter(t=>t.m==='webapps'&&t.done).length,totW=state.tasks.filter(t=>t.m==='webapps').length;
-    const doneH=state.tasks.filter(t=>t.m==='house'&&!t.count&&t.done).length,totH=state.tasks.filter(t=>t.m==='house'&&t.count===undefined).length;
-    const loads=state.tasks.filter(t=>t.count).reduce((s,t)=>s+t.count,0);
-    v.innerHTML=`<div class="review"><h3>WREN — WEEKLY DISPATCH</h3><p>${doneW}/${totW} webapp tasks shipped. ${doneW===totW?'EVERYTHING IS DONE?! I need to sit down.':'The blocked tasks are BLOCKED ON A HUMAN. You know who you are. GO.'}</p></div>
-    <div class="review"><h3>BARTLEBY — HOUSEHOLD REPORT</h3><p>The household completed ${doneH} of ${totH} standing duties${loads?`, and laundry steps were logged ${loads} time${loads>1?'s':''}`:''}. ${doneH>=totH*0.7?'The house, I am pleased to report, ran because its people showed up.':'The house endures. It would prefer, however, to be tended.'}</p></div>
-    <div class="empty">Phase 3: agents write this narrative from the real ledger.</div>`;
-    return;
-  }
+  if(tab==='report'){renderReport(v);return}
   const m=MISSIONS[tab];
   let html=`<div class="mission"><h2>${m.t}</h2><div class="why">"${m.why}" · <span class="agent-tag">AGENT: ${m.agent.toUpperCase()}</span></div></div>`;
-  const tasks=state.tasks.filter(t=>t.m===tab);
   let lastCat=null;
-  tasks.forEach(t=>{
+  state.tasks.filter(t=>t.m===tab).forEach(t=>{
     if(t.cat&&t.cat!==lastCat){html+=`<div class="section-label">${t.cat}</div>`;lastCat=t.cat}
     if(t.count!==undefined){
       html+=`<div class="step"><span class="tname">${t.n}</span><div class="counter"><button onclick="bump('${t.id}',-1)">−</button><span class="n">${t.count}</span><button onclick="bump('${t.id}',1)">+</button></div></div>`;
@@ -166,13 +192,60 @@ function render(){
         <div class="chk" onclick="toggle('${t.id}')">${t.done?'✓':''}</div>
         <div style="flex:1"><div class="tname">${t.n}</div>
         <div class="tmeta">${t.blocked?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked).toUpperCase()}</span>`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
-        ${t.blocked&&!t.done?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
+        ${t.blocked&&!t.done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
       </div>`;
     }
   });
   v.innerHTML=html;
 }
-document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{tab=el.dataset.t;render()});
+function renderReport(v){
+  const[from,to,dayDate]=periodRange();
+  const humans=ACTORS.filter(a=>a.h).sort((a,b)=>a.n.localeCompare(b.n));
+  const ev=houseEvents(from,to);
+  // dispatches
+  const totComp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
+  const totCnt=ev.filter(e=>e.type==='count').reduce((s,e)=>s+(e.qty||1),0);
+  let bart;
+  if(!ev.length)bart='The board is clear. The '+period.toLowerCase()+' is unwritten.';
+  else bart=`In this ${period.toLowerCase()}, the household recorded ${Math.max(0,totComp)} completed dut${totComp===1?'y':'ies'}${totCnt?` and ${totCnt} laundry action${totCnt>1?'s':''}`:''}. The house, I am pleased to report, runs because its people show up.`;
+  let html=`<div class="seg">${['DAY','WEEK','MONTH','YEAR'].map(p=>`<div class="${period===p?'on':''}" onclick="period='${p}';dayOffset=0;render()">${p}</div>`).join('')}</div>`;
+  if(period==='DAY'){
+    const lbl=dayOffset===0?'TODAY':dayDate.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+    html+=`<div class="stepper"><button onclick="dayOffset--;render()">‹</button><span>${lbl}</span><button ${dayOffset>=0?'disabled style="opacity:.3"':''} onclick="dayOffset++;render()">›</button></div>`;
+  }
+  html+=`<div class="review"><h3>BARTLEBY — HOUSEHOLD DISPATCH</h3><p>${bart}</p></div>`;
+  if(state.actor==='dad'){
+    const wDone=state.tasks.filter(t=>t.m==='webapps'&&t.done).length,wTot=state.tasks.filter(t=>t.m==='webapps').length;
+    html+=`<div class="review"><h3>WREN — WEBAPPS DISPATCH</h3><p>${wDone}/${wTot} tasks shipped. ${wDone===wTot?'EVERYTHING IS DONE?! I need to sit down.':'The blocked tasks are BLOCKED ON A HUMAN. You know who you are. GO.'}</p></div>`;
+  }
+  // contribution board
+  html+=`<div class="section-label">CONTRIBUTION BOARD</div><table class="board"><tr><th>ACTOR</th><th style="text-align:right">DONE</th><th style="text-align:right">LAUNDRY×</th><th style="text-align:right">STREAK</th></tr>`;
+  humans.forEach(a=>{
+    const t=tally(a.id,from,to);const s=streak(a.id);
+    html+=`<tr><td>${a.n}</td><td class="num">${t.comp}</td><td class="num">${t.cnt}</td><td class="num">${s?'🔥 '+s+'d':'—'}</td></tr>`;
+  });
+  html+=`</table>`;
+  // coverage strip (week view of last 7 days regardless of period, for shared tasks)
+  html+=`<div class="section-label">HOUSE COVERAGE — LAST 7 DAYS</div>`;
+  const days=[];for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days.push(dayKey(d.getTime()))}
+  state.tasks.filter(t=>t.shared).forEach(t=>{
+    const dots=days.map(k=>{
+      const hit=state.ledger.some(e=>e.type==='complete'&&e.task===t.id&&dayKey(e.t)===k);
+      return `<span class="${hit?'y':'n'}">●</span>`;
+    }).join('');
+    html+=`<div class="cov"><span style="min-width:150px">${t.n}</span><span class="dots">${dots}</span></div>`;
+  });
+  // sparkline: daily totals across period
+  const buckets={};houseEvents(from,to).forEach(e=>{if(e.type==='complete'||e.type==='count'){const k=dayKey(e.t);buckets[k]=(buckets[k]||0)+1}});
+  const keys=Object.keys(buckets).sort();
+  if(keys.length>1){
+    const vals=keys.map(k=>buckets[k]);const mx=Math.max(...vals);
+    const pts=vals.map((n,i)=>`${(i/(vals.length-1))*300},${40-(n/mx)*36}`).join(' ');
+    html+=`<div class="section-label">TREND</div><div class="spark"><svg width="100%" viewBox="0 0 300 44" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="#4fc3f7" stroke-width="2"/></svg></div>`;
+  }
+  html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
+  v.innerHTML=html;
+}
 render();
 </script>
 </body>
