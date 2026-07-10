@@ -18,6 +18,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);max-width:48
 header{padding:18px 16px 10px;display:flex;justify-content:space-between;align-items:baseline}
 header h1{font-family:var(--mono);font-size:20px;letter-spacing:2px;color:var(--accent)}
 header h1 span{color:var(--dim);font-size:11px;letter-spacing:1px;margin-left:6px}
+.sync{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:1px}
+.sync .dot{color:var(--ok)}
+.sync.err .dot{color:var(--danger)}
 .actor-bar{display:flex;gap:6px;padding:4px 16px 12px;overflow-x:auto}
 .actor{font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--dim);cursor:pointer;white-space:nowrap}
 .actor.on{border-color:var(--accent);color:var(--accent);background:rgba(79,195,247,.08)}
@@ -29,17 +32,19 @@ header h1 span{color:var(--dim);font-size:11px;letter-spacing:1px;margin-left:6p
 .mission h2{font-family:var(--mono);font-size:13px;letter-spacing:1px;color:var(--text)}
 .agent-tag{font-family:var(--mono);font-size:10px;color:var(--warn);letter-spacing:1px}
 .task{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:8px 16px;padding:12px 14px;display:flex;align-items:center;gap:12px}
-.task.done{opacity:.45}
+.task.done{opacity:.55}
 .task.blocked{border-left:3px solid var(--danger)}
 .chk{width:22px;height:22px;min-width:22px;border-radius:6px;border:2px solid var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--bg)}
 .task.done .chk{background:var(--ok);border-color:var(--ok)}
 .tname{font-size:14px;font-weight:500;flex:1}
 .tmeta{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px}
+.tmeta .attr{color:var(--ok)}
 .blocked-tag{font-family:var(--mono);font-size:9px;color:var(--danger);letter-spacing:1px}
 .counter{display:flex;align-items:center;gap:8px;font-family:var(--mono)}
 .counter button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--accent);font-size:16px;cursor:pointer}
 .counter .n{min-width:20px;text-align:center;font-size:14px;color:var(--accent)}
 .step{background:var(--card2);border:1px solid var(--line);border-radius:8px;margin:6px 16px 6px 36px;padding:9px 12px;display:flex;align-items:center;gap:10px;font-size:13px}
+.step .stepattr{font-family:var(--mono);font-size:9px;color:var(--ok)}
 .section-label{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--dim);margin:16px 16px 4px}
 .ledger{margin:0 16px}
 .evt{font-family:var(--mono);font-size:11px;padding:8px 10px;border-left:2px solid var(--line);margin:6px 0;color:var(--dim);line-height:1.5}
@@ -73,72 +78,95 @@ table.board td.num{text-align:right;color:var(--accent)}
 </style>
 </head>
 <body>
-<header><h1>HEARTH<span>v0.2 · phase 0</span></h1><div class="agent-tag" id="dateLabel"></div></header>
+<header><h1>HEARTH<span>v1.0 · phase 1</span></h1><div style="text-align:right"><div class="agent-tag" id="dateLabel"></div><div class="sync" id="sync"><span class="dot">●</span> SYNCED</div></div></header>
 <div class="actor-bar" id="actorBar"></div>
 <div class="tabs" id="tabBar"></div>
 <div id="view"></div>
 <div class="toast" id="toast"><div class="tw" id="toastWho"></div><div id="toastMsg"></div></div>
 <script>
+const SB='https://wxifknodqieeuegsglnq.supabase.co/rest/v1';
+const KEY='sb_publishable_y2CtDezvstqPQfVqW2ORHw_mY1FoLNs';
+const H={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
 const ACTORS=[{id:'dad',n:'Dad',h:1},{id:'mom',n:'Mom',h:1},{id:'k1',n:'Kid 1',h:1},{id:'k2',n:'Kid 2',h:1},{id:'wren',n:'Wren',h:0},{id:'bartleby',n:'Bartleby',h:0}];
-const SEED_TASKS=[
- {id:'w1',m:'webapps',n:'Create GitHub repo for Hearth',blocked:'dad',done:true},
- {id:'w2',m:'webapps',n:'Drop fresh GitHub token into chat',blocked:'dad',done:true},
- {id:'w3',m:'webapps',n:'Build Phase 0 PWA',agent:'wren',done:true},
- {id:'w4',m:'webapps',n:'Deploy to Cloudflare',agent:'wren'},
- {id:'w5',m:'webapps',n:'Demo BOM Intelligence wireframe to first prospect',blocked:'dad'},
- {id:'w6',m:'webapps',n:'Family test of Hearth Phase 0',blocked:'dad'},
- {id:'h1',m:'house',cat:'PERSONAL',n:'Bed made'},
- {id:'h2',m:'house',cat:'PERSONAL',n:'Floor cleared'},
- {id:'h3',m:'house',cat:'PERSONAL',n:'Bathroom tidied'},
- {id:'h4',m:'house',cat:'SHARED',shared:1,n:'Pets fed (dog + cat)'},
- {id:'h5',m:'house',cat:'SHARED',shared:1,n:'Pet waste picked up'},
- {id:'h6',m:'house',cat:'SHARED',shared:1,n:'Dog walked'},
- {id:'h7',m:'house',cat:'SHARED',shared:1,n:'Dishes done'},
- {id:'h8',m:'house',cat:'SHARED',shared:1,n:'Shoes & clothing put away'},
- {id:'h9',m:'house',cat:'SHARED',shared:1,n:'General tidying'},
- {id:'L1',m:'house',cat:'LAUNDRY',n:'Get clothes from rooms',count:0},
- {id:'L2',m:'house',cat:'LAUNDRY',n:'Bring to laundry room',count:0},
- {id:'L3',m:'house',cat:'LAUNDRY',n:'Put in wash',count:0},
- {id:'L4',m:'house',cat:'LAUNDRY',n:'Move to dryer',count:0},
- {id:'L5',m:'house',cat:'LAUNDRY',n:'Fold',count:0},
- {id:'L6',m:'house',cat:'LAUNDRY',n:'Put away',count:0},
-];
 const MISSIONS={webapps:{t:'SHIP THE WEB APPS',why:'Validate BOM Intelligence with a paying customer; build the family\'s task OS.',agent:'Wren'},house:{t:'RUN A HOUSE WE\'RE PROUD OF',why:'Shared ownership habits that outlast the chore list.',agent:'Bartleby'}};
 const WREN={done:["FINALLY. Was that so hard?! ...good work. NEXT.","YES! SHIPPED! Okay okay okay — what's next, what's NEXT?!","About time! I've been staring at that task so long my eye twitched."],
 blocked:["THAT TASK NEEDS *YOU*. Ninety seconds of work! NINETY! GO!","I can't do it, the butler can't do it — it's YOURS. Why is it still HERE?!","Every downstream task is WAITING. Do you hear me? WAITING."]};
 const BART={done:["Noted. The house is fractionally more civilized for it.","I shall record this act of diligence in the ledger. Well done.","Splendid. The dog appears less judgmental already."]};
-let state=load()||{tasks:SEED_TASKS,ledger:[
- {who:'wren',agent:1,msg:'Mission opened: SHIP THE WEB APPS. Repo exists. Token received. We are MOVING.',t:Date.now()-3600000},
- {who:'bartleby',agent:1,msg:'Mission opened: Run a House We\'re Proud Of. I have taken the liberty of preparing the day\'s list.',t:Date.now()-3500000},
- {who:'wren',agent:1,msg:'Phase 0 build complete. Deployment pending. I am watching the Cloudflare task. Closely.',t:Date.now()-60000},
-],actor:'dad'};
-let tab='house', period='WEEK', dayOffset=0;
-if(state.actor==='dad')tab='webapps';
-function load(){try{return JSON.parse(localStorage.getItem('hearth-v0'))}catch(e){return null}}
-function save(){localStorage.setItem('hearth-v0',JSON.stringify(state))}
+let tasks=[],events=[],actor=localStorage.getItem('hearth-actor')||'dad';
+let tab=actor==='dad'?'webapps':'house',period='WEEK',dayOffset=0,syncOK=true;
+function el(id){return document.getElementById(id)}
 function fmt(t){const d=new Date(t);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}
+function tmOnly(t){return new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}
 function actorName(id){const a=ACTORS.find(a=>a.id===id);return a?a.n:id}
-function log(who,msg,opts={}){state.ledger.unshift(Object.assign({who,msg,t:Date.now()},opts));if(state.ledger.length>500)state.ledger.pop();save()}
-function toast(who,msg){const t=document.getElementById('toast');t.className='toast show '+who;document.getElementById('toastWho').textContent=who.toUpperCase();document.getElementById('toastMsg').textContent=msg;clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),3500)}
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
-function toggle(id){
-  const t=state.tasks.find(x=>x.id===id);t.done=!t.done;
-  if(t.done){
-    log(state.actor,`completed "${t.n}"`,{type:'complete',task:t.id,m:t.m});
-    const ag=t.m==='webapps'?'wren':'bartleby';
-    const line=pick(ag==='wren'?WREN.done:BART.done);
-    log(ag,line,{agent:1});toast(ag,line);
-  }else{log(state.actor,`reopened "${t.n}"`,{type:'reopen',task:t.id,m:t.m})}
-  save();render();
-}
-function bump(id,d){
-  const t=state.tasks.find(x=>x.id===id);t.count=Math.max(0,(t.count||0)+d);
-  if(d>0){log(state.actor,`logged "${t.n}" (×${t.count} today)`,{type:'count',task:t.id,m:t.m,qty:1});
-    if(t.count===1){const line=pick(BART.done);log('bartleby',line,{agent:1});toast('bartleby',line)}}
-  save();render();
-}
-function nudge(id){const t=state.tasks.find(x=>x.id===id);const line=pick(WREN.blocked);log('wren',line+` [re: ${t.n}]`,{agent:1});toast('wren',line);save();render()}
 function dayKey(t){const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+const todayKey=()=>dayKey(Date.now());
+function toast(who,msg){const t=el('toast');t.className='toast show '+who;el('toastWho').textContent=who.toUpperCase();el('toastMsg').textContent=msg;clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),3500)}
+function setSync(ok){syncOK=ok;el('sync').className='sync'+(ok?'':' err');el('sync').innerHTML='<span class="dot">●</span> '+(ok?'SYNCED':'OFFLINE')}
+async function fetchAll(){
+  try{
+    const[tr,er]=await Promise.all([
+      fetch(SB+'/tasks?select=*&order=sort',{headers:H}),
+      fetch(SB+'/events?select=*&order=created_at.desc&limit=1000',{headers:H})
+    ]);
+    if(!tr.ok||!er.ok)throw 0;
+    tasks=await tr.json();events=await er.json();
+    events.forEach(e=>e.t=new Date(e.created_at).getTime());
+    setSync(true);
+  }catch(e){setSync(false)}
+  render();
+}
+async function post(ev){
+  try{const r=await fetch(SB+'/events',{method:'POST',headers:H,body:JSON.stringify(ev)});if(!r.ok)throw 0;setSync(true)}
+  catch(e){setSync(false);toast('bartleby','I regret the ledger is unreachable. Your deed goes unrecorded — do try again.')}
+  await fetchAll();
+}
+// ---- derived state ----
+function taskEvents(tid){return events.filter(e=>e.task_id===tid)}
+function isHouse(t){return t.mission==='house'}
+function doneState(t){
+  // house checkbox tasks: daily reset -> consider only today's events; webapps: all-time
+  const ev=taskEvents(t.id).filter(e=>e.type==='complete'||e.type==='reopen')
+    .filter(e=>isHouse(t)?dayKey(e.t)===todayKey():true);
+  if(!ev.length)return null;
+  const last=ev[0]; // events sorted desc
+  return last.type==='complete'?last:null;
+}
+function countToday(t){
+  return taskEvents(t.id).filter(e=>e.type==='count'&&dayKey(e.t)===todayKey()).reduce((s,e)=>s+(e.qty||1),0);
+}
+async function toggle(id){
+  const t=tasks.find(x=>x.id===id);
+  const done=doneState(t);
+  if(!done){
+    const ag=t.mission==='webapps'?'wren':'bartleby';
+    const line=pick(ag==='wren'?WREN.done:BART.done);
+    toast(ag,line);
+    await post([{actor,task_id:id,type:'complete',mission:t.mission,msg:`completed "${t.name}"`},
+                {actor:ag,type:'agent_msg',mission:t.mission,msg:line}]);
+  }else{
+    await post({actor,task_id:id,type:'reopen',mission:t.mission,msg:`reopened "${t.name}"`});
+  }
+}
+async function bump(id,d){
+  const t=tasks.find(x=>x.id===id);
+  if(d<0)return; // ledger is append-only; no negative corrections in v1
+  const n=countToday(t)+1;
+  if(n===1){const line=pick(BART.done);toast('bartleby',line);
+    await post([{actor,task_id:id,type:'count',mission:t.mission,qty:1,msg:`logged "${t.name}" (×${n} today)`},
+                {actor:'bartleby',type:'agent_msg',mission:t.mission,msg:line}]);}
+  else await post({actor,task_id:id,type:'count',mission:t.mission,qty:1,msg:`logged "${t.name}" (×${n} today)`});
+}
+async function nudge(id){
+  const t=tasks.find(x=>x.id===id);const line=pick(WREN.blocked);
+  toast('wren',line);
+  await post({actor:'wren',type:'agent_msg',mission:t.mission,msg:line+` [re: ${t.name}]`});
+}
+function setActor(id){actor=id;localStorage.setItem('hearth-actor',id);if(tab==='webapps'&&id!=='dad')tab='house';render()}
+function visibleTabs(){
+  const v=[];if(actor==='dad')v.push(['webapps','WEBAPPS']);
+  v.push(['house','HOUSEHOLD'],['ledger','LEDGER'],['report','REPORT']);return v;
+}
 function periodRange(){
   const now=new Date();
   if(period==='DAY'){const d=new Date(now);d.setDate(d.getDate()+dayOffset);const s=new Date(d);s.setHours(0,0,0,0);const e=new Date(d);e.setHours(23,59,59,999);return[s.getTime(),e.getTime(),d]}
@@ -146,53 +174,49 @@ function periodRange(){
   if(period==='MONTH'){const s=new Date(now);s.setDate(s.getDate()-29);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()]}
   const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
 }
-function houseEvents(from,to){return state.ledger.filter(e=>e.type&&e.m==='house'&&e.t>=from&&e.t<=to)}
-function tally(actorId,from,to){
-  const ev=houseEvents(from,to).filter(e=>e.who===actorId);
+function houseEvents(from,to){return events.filter(e=>e.type!=='agent_msg'&&e.mission==='house'&&e.t>=from&&e.t<=to)}
+function tally(aid,from,to){
+  const ev=houseEvents(from,to).filter(e=>e.actor===aid);
   const comp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
   const cnt=ev.filter(e=>e.type==='count').reduce((s,e)=>s+(e.qty||1),0);
   return{comp:Math.max(0,comp),cnt};
 }
-function streak(actorId){
+function streak(aid){
   let n=0;const d=new Date();
   for(;;){const k=dayKey(d.getTime());
-    const hit=state.ledger.some(e=>e.type&&e.who===actorId&&(e.type==='complete'||e.type==='count')&&dayKey(e.t)===k);
+    const hit=events.some(e=>e.actor===aid&&(e.type==='complete'||e.type==='count')&&dayKey(e.t)===k);
     if(hit){n++;d.setDate(d.getDate()-1)}else break;
-    if(n>3650)break;
-  }
+    if(n>3650)break}
   return n;
 }
-function visibleTabs(){
-  const tabs=[];
-  if(state.actor==='dad')tabs.push(['webapps','WEBAPPS']);
-  tabs.push(['house','HOUSEHOLD'],['ledger','LEDGER'],['report','REPORT']);
-  return tabs;
-}
-function setActor(id){state.actor=id;if(tab==='webapps'&&id!=='dad')tab='house';save();render()}
 function render(){
-  document.getElementById('dateLabel').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
-  document.getElementById('actorBar').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="actor ${state.actor===a.id?'on':''}" onclick="setActor('${a.id}')">${a.n}</div>`).join('')+`<div class="actor" style="border-style:dashed;pointer-events:none">🤖 Wren · Bartleby</div>`;
-  document.getElementById('tabBar').innerHTML=visibleTabs().map(([k,l])=>`<div class="tab ${tab===k?'on':''}" onclick="tab='${k}';render()">${l}</div>`).join('');
-  const v=document.getElementById('view');
+  el('dateLabel').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+  el('actorBar').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="actor ${actor===a.id?'on':''}" onclick="setActor('${a.id}')">${a.n}</div>`).join('')+`<div class="actor" style="border-style:dashed;pointer-events:none">🤖 Wren · Bartleby</div>`;
+  el('tabBar').innerHTML=visibleTabs().map(([k,l])=>`<div class="tab ${tab===k?'on':''}" onclick="tab='${k}';render()">${l}</div>`).join('');
+  const v=el('view');
+  if(!tasks.length){v.innerHTML='<div class="empty">'+(syncOK?'Loading the ledger…':'Cannot reach the ledger. Check connection.')+'</div>';return}
   if(tab==='ledger'){
-    v.innerHTML=`<div class="section-label">APPEND-ONLY EVENT STREAM</div><div class="ledger">`+
-      (state.ledger.length?state.ledger.map(e=>`<div class="evt ${e.agent?'agent':''}"><span class="who">${actorName(e.who).toUpperCase()}</span> ${e.msg}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
+    v.innerHTML=`<div class="section-label">SHARED EVENT STREAM — ALL DEVICES</div><div class="ledger">`+
+      (events.length?events.slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.msg||e.type}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
     return;
   }
   if(tab==='report'){renderReport(v);return}
   const m=MISSIONS[tab];
   let html=`<div class="mission"><h2>${m.t}</h2><div class="why">"${m.why}" · <span class="agent-tag">AGENT: ${m.agent.toUpperCase()}</span></div></div>`;
   let lastCat=null;
-  state.tasks.filter(t=>t.m===tab).forEach(t=>{
-    if(t.cat&&t.cat!==lastCat){html+=`<div class="section-label">${t.cat}</div>`;lastCat=t.cat}
-    if(t.count!==undefined){
-      html+=`<div class="step"><span class="tname">${t.n}</span><div class="counter"><button onclick="bump('${t.id}',-1)">−</button><span class="n">${t.count}</span><button onclick="bump('${t.id}',1)">+</button></div></div>`;
+  tasks.filter(t=>t.mission===tab).forEach(t=>{
+    if(t.category&&t.category!==lastCat){html+=`<div class="section-label">${t.category}</div>`;lastCat=t.category}
+    if(t.countable){
+      const n=countToday(t);
+      const who=taskEvents(t.id).filter(e=>e.type==='count'&&dayKey(e.t)===todayKey())[0];
+      html+=`<div class="step"><div style="flex:1"><div>${t.name}</div>${who?`<div class="stepattr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}',1)">+</button></div></div>`;
     }else{
-      html+=`<div class="task ${t.done?'done':''} ${t.blocked&&!t.done?'blocked':''}">
-        <div class="chk" onclick="toggle('${t.id}')">${t.done?'✓':''}</div>
-        <div style="flex:1"><div class="tname">${t.n}</div>
-        <div class="tmeta">${t.blocked?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked).toUpperCase()}</span>`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
-        ${t.blocked&&!t.done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
+      const done=doneState(t);
+      html+=`<div class="task ${done?'done':''} ${t.blocked_on&&!done?'blocked':''}">
+        <div class="chk" onclick="toggle('${t.id}')">${done?'✓':''}</div>
+        <div style="flex:1"><div class="tname">${t.name}</div>
+        <div class="tmeta">${done?`<span class="attr">✓ ${actorName(done.actor)}, ${tmOnly(done.t)}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
+        ${t.blocked_on&&!done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
       </div>`;
     }
   });
@@ -202,40 +226,32 @@ function renderReport(v){
   const[from,to,dayDate]=periodRange();
   const humans=ACTORS.filter(a=>a.h).sort((a,b)=>a.n.localeCompare(b.n));
   const ev=houseEvents(from,to);
-  // dispatches
-  const totComp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
+  const totComp=Math.max(0,ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length);
   const totCnt=ev.filter(e=>e.type==='count').reduce((s,e)=>s+(e.qty||1),0);
-  let bart;
-  if(!ev.length)bart='The board is clear. The '+period.toLowerCase()+' is unwritten.';
-  else bart=`In this ${period.toLowerCase()}, the household recorded ${Math.max(0,totComp)} completed dut${totComp===1?'y':'ies'}${totCnt?` and ${totCnt} laundry action${totCnt>1?'s':''}`:''}. The house, I am pleased to report, runs because its people show up.`;
+  let bart=!ev.length?'The board is clear. The '+period.toLowerCase()+' is unwritten.':
+    `In this ${period.toLowerCase()}, the household recorded ${totComp} completed dut${totComp===1?'y':'ies'}${totCnt?` and ${totCnt} laundry action${totCnt>1?'s':''}`:''}. The house, I am pleased to report, runs because its people show up.`;
   let html=`<div class="seg">${['DAY','WEEK','MONTH','YEAR'].map(p=>`<div class="${period===p?'on':''}" onclick="period='${p}';dayOffset=0;render()">${p}</div>`).join('')}</div>`;
   if(period==='DAY'){
     const lbl=dayOffset===0?'TODAY':dayDate.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
     html+=`<div class="stepper"><button onclick="dayOffset--;render()">‹</button><span>${lbl}</span><button ${dayOffset>=0?'disabled style="opacity:.3"':''} onclick="dayOffset++;render()">›</button></div>`;
   }
   html+=`<div class="review"><h3>BARTLEBY — HOUSEHOLD DISPATCH</h3><p>${bart}</p></div>`;
-  if(state.actor==='dad'){
-    const wDone=state.tasks.filter(t=>t.m==='webapps'&&t.done).length,wTot=state.tasks.filter(t=>t.m==='webapps').length;
+  if(actor==='dad'){
+    const wDone=tasks.filter(t=>t.mission==='webapps'&&doneState(t)).length,wTot=tasks.filter(t=>t.mission==='webapps').length;
     html+=`<div class="review"><h3>WREN — WEBAPPS DISPATCH</h3><p>${wDone}/${wTot} tasks shipped. ${wDone===wTot?'EVERYTHING IS DONE?! I need to sit down.':'The blocked tasks are BLOCKED ON A HUMAN. You know who you are. GO.'}</p></div>`;
   }
-  // contribution board
   html+=`<div class="section-label">CONTRIBUTION BOARD</div><table class="board"><tr><th>ACTOR</th><th style="text-align:right">DONE</th><th style="text-align:right">LAUNDRY×</th><th style="text-align:right">STREAK</th></tr>`;
-  humans.forEach(a=>{
-    const t=tally(a.id,from,to);const s=streak(a.id);
-    html+=`<tr><td>${a.n}</td><td class="num">${t.comp}</td><td class="num">${t.cnt}</td><td class="num">${s?'🔥 '+s+'d':'—'}</td></tr>`;
-  });
+  humans.forEach(a=>{const t=tally(a.id,from,to);const s=streak(a.id);
+    html+=`<tr><td>${a.n}</td><td class="num">${t.comp}</td><td class="num">${t.cnt}</td><td class="num">${s?'🔥 '+s+'d':'—'}</td></tr>`});
   html+=`</table>`;
-  // coverage strip (week view of last 7 days regardless of period, for shared tasks)
   html+=`<div class="section-label">HOUSE COVERAGE — LAST 7 DAYS</div>`;
   const days=[];for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days.push(dayKey(d.getTime()))}
-  state.tasks.filter(t=>t.shared).forEach(t=>{
+  tasks.filter(t=>t.shared).forEach(t=>{
     const dots=days.map(k=>{
-      const hit=state.ledger.some(e=>e.type==='complete'&&e.task===t.id&&dayKey(e.t)===k);
-      return `<span class="${hit?'y':'n'}">●</span>`;
-    }).join('');
-    html+=`<div class="cov"><span style="min-width:150px">${t.n}</span><span class="dots">${dots}</span></div>`;
+      const hit=events.some(e=>e.type==='complete'&&e.task_id===t.id&&dayKey(e.t)===k);
+      return `<span class="${hit?'y':'n'}">●</span>`}).join('');
+    html+=`<div class="cov"><span style="min-width:150px">${t.name}</span><span class="dots">${dots}</span></div>`;
   });
-  // sparkline: daily totals across period
   const buckets={};houseEvents(from,to).forEach(e=>{if(e.type==='complete'||e.type==='count'){const k=dayKey(e.t);buckets[k]=(buckets[k]||0)+1}});
   const keys=Object.keys(buckets).sort();
   if(keys.length>1){
@@ -246,7 +262,9 @@ function renderReport(v){
   html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
   v.innerHTML=html;
 }
-render();
+fetchAll();
+setInterval(fetchAll,30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetchAll()});
 </script>
 </body>
 </html>
