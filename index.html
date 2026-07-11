@@ -2,83 +2,90 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0a1628">
+<meta name="theme-color" id="themeColor" content="#fdfbf7">
 <title>Hearth</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{
-  --bg:#0a1628; --card:#1a2d50; --card2:#16264a; --line:#26406e;
-  --accent:#4fc3f7; --ok:#4caf7d; --warn:#ffb74d; --danger:#ef5350;
-  --text:#e8eef7; --dim:#8ba3c7; --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+html{background:#fdfbf7;transition:background .4s}
+body.westford{
+  --bg:#fdfbf7; --card:#ffffff; --card2:#f8f4ec; --line:#ece4d6;
+  --accent:#c06a38; --accent2:#7d9b76; --ok:#5a9e6f; --warn:#e0a83f; --danger:#d95f4b;
+  --text:#4a4336; --dim:#9a9080; --head:#c06a38;
+}
+body.york{
+  --bg:#fbfdfd; --card:#ffffff; --card2:#f0f7f5; --line:#dcebe7;
+  --accent:#279184; --accent2:#e8b04b; --ok:#4aa87c; --warn:#e8a04b; --danger:#e0705c;
+  --text:#3a534e; --dim:#7fa09a; --head:#279184;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);max-width:480px;margin:0 auto;padding:0 0 90px;min-height:100vh}
-header{padding:18px 16px 10px;display:flex;justify-content:space-between;align-items:baseline}
-header h1{font-family:var(--mono);font-size:20px;letter-spacing:2px;color:var(--accent)}
-header h1 span{color:var(--dim);font-size:11px;letter-spacing:1px;margin-left:6px}
-.sync{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:1px}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;max-width:480px;margin:0 auto;padding:0 0 90px;min-height:100vh;transition:background .4s}
+.housestrip{display:flex;gap:8px;padding:14px 16px 2px}
+.hbtn{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1px;padding:10px 0;border-radius:12px;border:1.5px solid var(--line);background:var(--card2);color:var(--dim);cursor:pointer;transition:all .2s}
+.hbtn.on{border-color:var(--accent);color:var(--accent);background:var(--card);font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.brandrow{display:flex;justify-content:space-between;align-items:center;padding:6px 16px 2px}
+.brand{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;opacity:.7}
+.sync{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px}
 .sync .dot{color:var(--ok)}
 .sync.err .dot{color:var(--danger)}
-.actor-bar{display:flex;gap:6px;padding:4px 16px 12px;overflow-x:auto}
-.actor{font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--dim);cursor:pointer;white-space:nowrap}
-.actor.on{border-color:var(--accent);color:var(--accent);background:rgba(79,195,247,.08)}
-.tabs{display:flex;border-bottom:1px solid var(--line);margin:0 16px}
-.tab{flex:1;text-align:center;padding:10px 0;font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent}
-.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
-.mission{padding:14px 16px 6px}
+.actor-bar{display:flex;gap:6px;padding:8px 16px 10px;overflow-x:auto}
+.actor{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--dim);cursor:pointer;white-space:nowrap}
+.actor.on{border-color:var(--accent);color:var(--accent);background:var(--card2);font-weight:600}
+.tabs{display:flex;border-bottom:2px solid var(--line);margin:0 16px}
+.tab{flex:1;text-align:center;padding:10px 0;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1px;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.mission{padding:14px 16px 2px}
+.mission h2{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:1px}
 .mission .why{font-size:12px;color:var(--dim);margin-top:2px;font-style:italic}
-.mission h2{font-family:var(--mono);font-size:13px;letter-spacing:1px;color:var(--text)}
-.agent-tag{font-family:var(--mono);font-size:10px;color:var(--warn);letter-spacing:1px}
-.task{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:8px 16px;padding:12px 14px;display:flex;align-items:center;gap:12px}
-.task.done{opacity:.55}
-.task.blocked{border-left:3px solid var(--danger)}
-.chk{width:22px;height:22px;min-width:22px;border-radius:6px;border:2px solid var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--bg)}
+.agent-tag{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent2);letter-spacing:1px;font-weight:600}
+.cadence-label{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:3px;color:var(--accent);margin:20px 16px 0;font-weight:600}
+.section-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--dim);margin:14px 16px 2px}
+.task{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:8px 16px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.task.done{opacity:.55;box-shadow:none;background:var(--card2);border-color:transparent}
+.chk{width:24px;height:24px;min-width:24px;border-radius:8px;border:2px solid var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
 .task.done .chk{background:var(--ok);border-color:var(--ok)}
-.tname{font-size:14px;font-weight:500;flex:1}
-.tmeta{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px}
-.tmeta .attr{color:var(--ok)}
-.blocked-tag{font-family:var(--mono);font-size:9px;color:var(--danger);letter-spacing:1px}
-.counter{display:flex;align-items:center;gap:8px;font-family:var(--mono)}
-.counter button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--accent);font-size:16px;cursor:pointer}
-.counter .n{min-width:20px;text-align:center;font-size:14px;color:var(--accent)}
-.step{background:var(--card2);border:1px solid var(--line);border-radius:8px;margin:6px 16px 6px 36px;padding:9px 12px;display:flex;align-items:center;gap:10px;font-size:13px}
-.step .stepattr{font-family:var(--mono);font-size:9px;color:var(--ok)}
-.section-label{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--dim);margin:16px 16px 4px}
+.tname{font-size:15px;font-weight:600}
+.task.done .tname{font-weight:500}
+.tmeta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim);margin-top:2px}
+.tmeta .attr{color:var(--ok);font-weight:600}
+.blocked-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--danger);letter-spacing:1px}
+.counter{display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;margin-left:auto}
+.counter button{width:32px;height:32px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--accent);font-size:17px;cursor:pointer;font-weight:600}
+.counter .n{min-width:20px;text-align:center;font-size:14px;color:var(--accent);font-weight:600}
 .ledger{margin:0 16px}
-.evt{font-family:var(--mono);font-size:11px;padding:8px 10px;border-left:2px solid var(--line);margin:6px 0;color:var(--dim);line-height:1.5}
-.evt .who{color:var(--accent)}
-.evt.agent{border-left-color:var(--warn);background:rgba(255,183,77,.04)}
-.evt.agent .who{color:var(--warn)}
-.evt .time{font-size:9px;color:var(--dim);opacity:.7}
+.evt{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:8px 10px;border-left:2px solid var(--line);margin:6px 0;color:var(--dim);line-height:1.5;background:var(--card);border-radius:0 10px 10px 0}
+.evt .who{color:var(--accent);font-weight:600}
+.evt.agent{border-left-color:var(--accent2);background:var(--card2)}
+.evt.agent .who{color:var(--accent2)}
+.evt .time{font-size:9px;opacity:.7}
 .empty{padding:30px 16px;text-align:center;color:var(--dim);font-size:13px;font-style:italic}
-.review{margin:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
-.review h3{font-family:var(--mono);font-size:12px;color:var(--warn);letter-spacing:1px;margin-bottom:8px}
-.review p{font-size:13px;line-height:1.6;color:var(--text)}
-.seg{display:flex;gap:0;margin:14px 16px 4px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.seg div{flex:1;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;padding:8px 0;color:var(--dim);cursor:pointer;background:var(--card2)}
-.seg div.on{color:var(--bg);background:var(--accent);font-weight:600}
-.stepper{display:flex;justify-content:center;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--dim);margin:8px 0 0}
-.stepper button{background:none;border:1px solid var(--line);border-radius:8px;color:var(--accent);width:30px;height:26px;cursor:pointer}
-table.board{width:calc(100% - 32px);margin:8px 16px;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+.review{margin:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.review h3{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);letter-spacing:1px;margin-bottom:8px}
+.review p{font-size:13px;line-height:1.6}
+.seg{display:flex;margin:14px 16px 4px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg div{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;padding:8px 0;color:var(--dim);cursor:pointer;background:var(--card2)}
+.seg div.on{color:#fff;background:var(--accent);font-weight:600}
+.stepper{display:flex;justify-content:center;align-items:center;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--dim);margin:8px 0 0}
+.stepper button{background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--accent);width:30px;height:26px;cursor:pointer}
+table.board{width:calc(100% - 32px);margin:8px 16px;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:12px}
 table.board th{text-align:left;color:var(--dim);font-size:10px;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:500}
-table.board td{padding:9px 8px;border-bottom:1px solid var(--card2);color:var(--text)}
-table.board td.num{text-align:right;color:var(--accent)}
-.cov{margin:6px 16px;display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+table.board td{padding:9px 8px;border-bottom:1px solid var(--card2)}
+table.board td.num{text-align:right;color:var(--accent);font-weight:600}
+.cov{margin:6px 16px;display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim)}
 .cov .dots{letter-spacing:3px;font-size:13px}
 .cov .dots .y{color:var(--ok)}
 .cov .dots .n{color:var(--line)}
 .spark{margin:8px 16px 20px}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:440px;width:calc(100% - 32px);background:var(--card);border:1px solid var(--warn);border-radius:12px;padding:12px 16px;font-size:13px;line-height:1.5;z-index:99;box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:440px;width:calc(100% - 32px);background:var(--card);border:1px solid var(--accent2);border-left:4px solid var(--accent2);border-radius:14px;padding:12px 16px;font-size:13px;line-height:1.5;z-index:99;box-shadow:0 6px 24px rgba(0,0,0,.12);opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
-.toast .tw{font-family:var(--mono);font-size:10px;letter-spacing:1px;margin-bottom:4px}
-.toast.wren .tw{color:var(--danger)}
-.toast.bartleby .tw{color:var(--warn)}
+.toast .tw{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;margin-bottom:4px;color:var(--accent2);font-weight:600}
 </style>
 </head>
-<body>
-<header><h1>HEARTH<span>v1.0 · phase 1</span></h1><div style="text-align:right"><div class="agent-tag" id="dateLabel"></div><div class="sync" id="sync"><span class="dot">●</span> SYNCED</div></div></header>
+<body class="westford">
+<div class="housestrip" id="housestrip"></div>
+<div class="brandrow"><div class="brand">hearth · v1.1</div><div class="sync" id="sync"><span class="dot">●</span> SYNCED</div></div>
 <div class="actor-bar" id="actorBar"></div>
 <div class="tabs" id="tabBar"></div>
 <div id="view"></div>
@@ -86,28 +93,38 @@ table.board td.num{text-align:right;color:var(--accent)}
 <script>
 const SB='https://wxifknodqieeuegsglnq.supabase.co/rest/v1';
 const KEY='sb_publishable_y2CtDezvstqPQfVqW2ORHw_mY1FoLNs';
-const H={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
-const ACTORS=[{id:'dad',n:'Dad',h:1},{id:'mom',n:'Mom',h:1},{id:'k1',n:'Kid 1',h:1},{id:'k2',n:'Kid 2',h:1},{id:'wren',n:'Wren',h:0},{id:'bartleby',n:'Bartleby',h:0}];
+const HDRS={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const ACTORS=[{id:'dad',n:'Dad',h:1,adult:1},{id:'mom',n:'Mom',h:1,adult:1},{id:'k1',n:'Kid 1',h:1},{id:'k2',n:'Kid 2',h:1},{id:'wren',n:'Wren'},{id:'bartleby',n:'Bartleby'}];
 const MISSIONS={webapps:{t:'SHIP THE WEB APPS',why:'Validate BOM Intelligence with a paying customer; build the family\'s task OS.',agent:'Wren'},house:{t:'RUN A HOUSE WE\'RE PROUD OF',why:'Shared ownership habits that outlast the chore list.',agent:'Bartleby'}};
+const HOUSES={westford:{label:'🏠 WESTFORD',bg:'#fdfbf7'},york:{label:'🌊 YORK',bg:'#fbfdfd'}};
+const CAD_ORDER=['daily','weekly','monthly','quarterly','once'];
 const WREN={done:["FINALLY. Was that so hard?! ...good work. NEXT.","YES! SHIPPED! Okay okay okay — what's next, what's NEXT?!","About time! I've been staring at that task so long my eye twitched."],
 blocked:["THAT TASK NEEDS *YOU*. Ninety seconds of work! NINETY! GO!","I can't do it, the butler can't do it — it's YOURS. Why is it still HERE?!","Every downstream task is WAITING. Do you hear me? WAITING."]};
-const BART={done:["Noted. The house is fractionally more civilized for it.","I shall record this act of diligence in the ledger. Well done.","Splendid. The dog appears less judgmental already."]};
+const BART={done:["Noted. The house is fractionally more civilized for it.","I shall record this act of diligence in the ledger. Well done.","Splendid. Cooper appears less judgmental already.","Roxy has observed your effort and remains unimpressed. I, however, approve."]};
 let tasks=[],events=[],actor=localStorage.getItem('hearth-actor')||'dad';
+let house=localStorage.getItem('hearth-house')||'westford';
 let tab=actor==='dad'?'webapps':'house',period='WEEK',dayOffset=0,syncOK=true;
+const yorkSeason=()=>{const m=new Date().getMonth()+1;return m>=5&&m<=10};
+if(house==='york'&&!yorkSeason())house='westford';
 function el(id){return document.getElementById(id)}
 function fmt(t){const d=new Date(t);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}
 function tmOnly(t){return new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}
+function dOnly(t){return new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'})}
 function actorName(id){const a=ACTORS.find(a=>a.id===id);return a?a.n:id}
+function isAdult(id){const a=ACTORS.find(a=>a.id===id);return a&&a.adult}
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
 function dayKey(t){const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
-const todayKey=()=>dayKey(Date.now());
-function toast(who,msg){const t=el('toast');t.className='toast show '+who;el('toastWho').textContent=who.toUpperCase();el('toastMsg').textContent=msg;clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),3500)}
+function toast(who,msg){const t=el('toast');t.classList.add('show');el('toastWho').textContent=who.toUpperCase();el('toastMsg').textContent=msg;clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),3500)}
 function setSync(ok){syncOK=ok;el('sync').className='sync'+(ok?'':' err');el('sync').innerHTML='<span class="dot">●</span> '+(ok?'SYNCED':'OFFLINE')}
+function paint(){const bg=HOUSES[house].bg;
+  document.body.className=house;
+  const p=()=>{document.documentElement.style.setProperty('background',bg,'important');document.body.style.setProperty('background',bg,'important')};
+  p();requestAnimationFrame(p);el('themeColor').setAttribute('content',bg);}
 async function fetchAll(){
   try{
     const[tr,er]=await Promise.all([
-      fetch(SB+'/tasks?select=*&order=sort',{headers:H}),
-      fetch(SB+'/events?select=*&order=created_at.desc&limit=1000',{headers:H})
+      fetch(SB+'/tasks?select=*&order=sort',{headers:HDRS}),
+      fetch(SB+'/events?select=*&order=created_at.desc&limit=1000',{headers:HDRS})
     ]);
     if(!tr.ok||!er.ok)throw 0;
     tasks=await tr.json();events=await er.json();
@@ -117,28 +134,32 @@ async function fetchAll(){
   render();
 }
 async function post(ev){
-  try{const r=await fetch(SB+'/events',{method:'POST',headers:H,body:JSON.stringify(ev)});if(!r.ok)throw 0;setSync(true)}
+  try{const r=await fetch(SB+'/events',{method:'POST',headers:HDRS,body:JSON.stringify(ev)});if(!r.ok)throw 0;setSync(true)}
   catch(e){setSync(false);toast('bartleby','I regret the ledger is unreachable. Your deed goes unrecorded — do try again.')}
   await fetchAll();
 }
-// ---- derived state ----
-function taskEvents(tid){return events.filter(e=>e.task_id===tid)}
-function isHouse(t){return t.mission==='house'}
-function doneState(t){
-  // house checkbox tasks: daily reset -> consider only today's events; webapps: all-time
-  const ev=taskEvents(t.id).filter(e=>e.type==='complete'||e.type==='reopen')
-    .filter(e=>isHouse(t)?dayKey(e.t)===todayKey():true);
-  if(!ev.length)return null;
-  const last=ev[0]; // events sorted desc
-  return last.type==='complete'?last:null;
+// ---- cadence windows ----
+function windowStart(cad){
+  const d=new Date();d.setHours(0,0,0,0);
+  if(cad==='daily')return d.getTime();
+  if(cad==='weekly'){const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return d.getTime()}
+  if(cad==='monthly'){d.setDate(1);return d.getTime()}
+  if(cad==='quarterly'){d.setMonth(Math.floor(d.getMonth()/3)*3,1);return d.getTime()}
+  return 0; // once
 }
-function countToday(t){
-  return taskEvents(t.id).filter(e=>e.type==='count'&&dayKey(e.t)===todayKey()).reduce((s,e)=>s+(e.qty||1),0);
+function doneState(t){
+  const ws=windowStart(t.cadence||'daily');
+  const ev=events.filter(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='reopen')&&e.t>=ws);
+  if(!ev.length)return null;
+  return ev[0].type==='complete'?ev[0]:null;
+}
+function countWindow(t){
+  const ws=windowStart('daily');
+  return events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=ws).reduce((s,e)=>s+(e.qty||1),0);
 }
 async function toggle(id){
   const t=tasks.find(x=>x.id===id);
-  const done=doneState(t);
-  if(!done){
+  if(!doneState(t)){
     const ag=t.mission==='webapps'?'wren':'bartleby';
     const line=pick(ag==='wren'?WREN.done:BART.done);
     toast(ag,line);
@@ -148,10 +169,9 @@ async function toggle(id){
     await post({actor,task_id:id,type:'reopen',mission:t.mission,msg:`reopened "${t.name}"`});
   }
 }
-async function bump(id,d){
+async function bump(id){
   const t=tasks.find(x=>x.id===id);
-  if(d<0)return; // ledger is append-only; no negative corrections in v1
-  const n=countToday(t)+1;
+  const n=countWindow(t)+1;
   if(n===1){const line=pick(BART.done);toast('bartleby',line);
     await post([{actor,task_id:id,type:'count',mission:t.mission,qty:1,msg:`logged "${t.name}" (×${n} today)`},
                 {actor:'bartleby',type:'agent_msg',mission:t.mission,msg:line}]);}
@@ -163,9 +183,15 @@ async function nudge(id){
   await post({actor:'wren',type:'agent_msg',mission:t.mission,msg:line+` [re: ${t.name}]`});
 }
 function setActor(id){actor=id;localStorage.setItem('hearth-actor',id);if(tab==='webapps'&&id!=='dad')tab='house';render()}
+function setHouse(h){house=h;localStorage.setItem('hearth-house',h);paint();render()}
 function visibleTabs(){
   const v=[];if(actor==='dad')v.push(['webapps','WEBAPPS']);
   v.push(['house','HOUSEHOLD'],['ledger','LEDGER'],['report','REPORT']);return v;
+}
+function visibleTasks(mission){
+  return tasks.filter(t=>t.mission===mission)
+    .filter(t=>mission!=='house'||(t.house==='both'||t.house===house))
+    .filter(t=>t.audience!=='adult'||isAdult(actor));
 }
 function periodRange(){
   const now=new Date();
@@ -190,35 +216,45 @@ function streak(aid){
   return n;
 }
 function render(){
-  el('dateLabel').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
-  el('actorBar').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="actor ${actor===a.id?'on':''}" onclick="setActor('${a.id}')">${a.n}</div>`).join('')+`<div class="actor" style="border-style:dashed;pointer-events:none">🤖 Wren · Bartleby</div>`;
+  el('housestrip').innerHTML=Object.keys(HOUSES)
+    .filter(h=>h!=='york'||yorkSeason())
+    .map(h=>`<div class="hbtn ${house===h?'on':''}" onclick="setHouse('${h}')">${HOUSES[h].label}</div>`).join('');
+  el('actorBar').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="actor ${actor===a.id?'on':''}" onclick="setActor('${a.id}')">${a.n}</div>`).join('');
   el('tabBar').innerHTML=visibleTabs().map(([k,l])=>`<div class="tab ${tab===k?'on':''}" onclick="tab='${k}';render()">${l}</div>`).join('');
   const v=el('view');
   if(!tasks.length){v.innerHTML='<div class="empty">'+(syncOK?'Loading the ledger…':'Cannot reach the ledger. Check connection.')+'</div>';return}
   if(tab==='ledger'){
-    v.innerHTML=`<div class="section-label">SHARED EVENT STREAM — ALL DEVICES</div><div class="ledger">`+
+    v.innerHTML=`<div class="section-label" style="margin-top:16px">SHARED EVENT STREAM — ALL DEVICES</div><div class="ledger">`+
       (events.length?events.slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.msg||e.type}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
     return;
   }
   if(tab==='report'){renderReport(v);return}
   const m=MISSIONS[tab];
   let html=`<div class="mission"><h2>${m.t}</h2><div class="why">"${m.why}" · <span class="agent-tag">AGENT: ${m.agent.toUpperCase()}</span></div></div>`;
-  let lastCat=null;
-  tasks.filter(t=>t.mission===tab).forEach(t=>{
-    if(t.category&&t.category!==lastCat){html+=`<div class="section-label">${t.category}</div>`;lastCat=t.category}
-    if(t.countable){
-      const n=countToday(t);
-      const who=taskEvents(t.id).filter(e=>e.type==='count'&&dayKey(e.t)===todayKey())[0];
-      html+=`<div class="step"><div style="flex:1"><div>${t.name}</div>${who?`<div class="stepattr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}',1)">+</button></div></div>`;
-    }else{
-      const done=doneState(t);
-      html+=`<div class="task ${done?'done':''} ${t.blocked_on&&!done?'blocked':''}">
-        <div class="chk" onclick="toggle('${t.id}')">${done?'✓':''}</div>
-        <div style="flex:1"><div class="tname">${t.name}</div>
-        <div class="tmeta">${done?`<span class="attr">✓ ${actorName(done.actor)}, ${tmOnly(done.t)}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
-        ${t.blocked_on&&!done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
-      </div>`;
-    }
+  const list=visibleTasks(tab);
+  let lastCad=null,lastCat=null;
+  CAD_ORDER.forEach(cad=>{
+    const inCad=list.filter(t=>(t.cadence||'daily')===cad);
+    if(!inCad.length)return;
+    if(tab==='house')html+=`<div class="cadence-label">${cad.toUpperCase()}</div>`;
+    lastCat=null;
+    inCad.forEach(t=>{
+      if(t.category&&t.category!==lastCat){html+=`<div class="section-label">${t.category}</div>`;lastCat=t.category}
+      if(t.countable){
+        const n=countWindow(t);
+        const who=events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=windowStart('daily'))[0];
+        html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div>${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}')">+</button></div></div>`;
+      }else{
+        const done=doneState(t);
+        const attrTime=done?((t.cadence||'daily')==='daily'?tmOnly(done.t):dOnly(done.t)+' '+tmOnly(done.t)):null;
+        html+=`<div class="task ${done?'done':''}">
+          <div class="chk" onclick="toggle('${t.id}')">${done?'✓':''}</div>
+          <div style="flex:1"><div class="tname">${t.name}</div>
+          <div class="tmeta">${done?`<span class="attr">✓ ${actorName(done.actor)}, ${attrTime}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
+          ${t.blocked_on&&!done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
+        </div>`;
+      }
+    });
   });
   v.innerHTML=html;
 }
@@ -237,8 +273,9 @@ function renderReport(v){
   }
   html+=`<div class="review"><h3>BARTLEBY — HOUSEHOLD DISPATCH</h3><p>${bart}</p></div>`;
   if(actor==='dad'){
-    const wDone=tasks.filter(t=>t.mission==='webapps'&&doneState(t)).length,wTot=tasks.filter(t=>t.mission==='webapps').length;
-    html+=`<div class="review"><h3>WREN — WEBAPPS DISPATCH</h3><p>${wDone}/${wTot} tasks shipped. ${wDone===wTot?'EVERYTHING IS DONE?! I need to sit down.':'The blocked tasks are BLOCKED ON A HUMAN. You know who you are. GO.'}</p></div>`;
+    const wtasks=tasks.filter(t=>t.mission==='webapps');
+    const wDone=wtasks.filter(t=>doneState(t)).length;
+    html+=`<div class="review"><h3>WREN — WEBAPPS DISPATCH</h3><p>${wDone}/${wtasks.length} tasks shipped. ${wDone===wtasks.length?'EVERYTHING IS DONE?! I need to sit down.':'The blocked tasks are BLOCKED ON A HUMAN. You know who you are. GO.'}</p></div>`;
   }
   html+=`<div class="section-label">CONTRIBUTION BOARD</div><table class="board"><tr><th>ACTOR</th><th style="text-align:right">DONE</th><th style="text-align:right">LAUNDRY×</th><th style="text-align:right">STREAK</th></tr>`;
   humans.forEach(a=>{const t=tally(a.id,from,to);const s=streak(a.id);
@@ -246,7 +283,7 @@ function renderReport(v){
   html+=`</table>`;
   html+=`<div class="section-label">HOUSE COVERAGE — LAST 7 DAYS</div>`;
   const days=[];for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days.push(dayKey(d.getTime()))}
-  tasks.filter(t=>t.shared).forEach(t=>{
+  tasks.filter(t=>t.shared&&(t.cadence||'daily')==='daily'&&(t.house==='both'||t.house===house)).forEach(t=>{
     const dots=days.map(k=>{
       const hit=events.some(e=>e.type==='complete'&&e.task_id===t.id&&dayKey(e.t)===k);
       return `<span class="${hit?'y':'n'}">●</span>`}).join('');
@@ -257,11 +294,12 @@ function renderReport(v){
   if(keys.length>1){
     const vals=keys.map(k=>buckets[k]);const mx=Math.max(...vals);
     const pts=vals.map((n,i)=>`${(i/(vals.length-1))*300},${40-(n/mx)*36}`).join(' ');
-    html+=`<div class="section-label">TREND</div><div class="spark"><svg width="100%" viewBox="0 0 300 44" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="#4fc3f7" stroke-width="2"/></svg></div>`;
+    html+=`<div class="section-label">TREND</div><div class="spark"><svg width="100%" viewBox="0 0 300 44" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${house==='york'?'#279184':'#c06a38'}" stroke-width="2"/></svg></div>`;
   }
   html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
   v.innerHTML=html;
 }
+paint();
 fetchAll();
 setInterval(fetchAll,30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetchAll()});
