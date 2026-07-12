@@ -134,8 +134,10 @@ async function fetchAll(){
   render();
 }
 async function post(ev){
-  try{const r=await fetch(SB+'/events',{method:'POST',headers:HDRS,body:JSON.stringify(ev)});if(!r.ok)throw 0;setSync(true)}
-  catch(e){setSync(false);toast('bartleby','I regret the ledger is unreachable. Your deed goes unrecorded — do try again.')}
+  try{const r=await fetch(SB+'/events',{method:'POST',headers:HDRS,body:JSON.stringify(ev)});
+    if(!r.ok){const body=await r.text();throw new Error('HTTP '+r.status+': '+body.slice(0,200))}
+    setSync(true)}
+  catch(e){setSync(false);toast('bartleby','Ledger write failed — '+e.message)}
   await fetchAll();
 }
 // ---- cadence windows ----
