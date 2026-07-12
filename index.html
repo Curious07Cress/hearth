@@ -87,6 +87,13 @@ table.board td.num{text-align:right;color:var(--accent);font-weight:600}
 .cov .dots .y{color:var(--ok)}
 .cov .dots .n{color:var(--line)}
 .spark{margin:8px 16px 20px}
+.task.bounty{border-color:#ecd9a8;background:#fdf6e3}
+body.york .task.bounty{background:#fbf7e8}
+.task.bounty.done{background:var(--card2);border-color:transparent}
+.badge{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;color:#c9962e;background:#fff;border:1.5px solid #ecd9a8;border-radius:10px;padding:4px 9px;white-space:nowrap}
+.claimbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#c9962e;background:#fff;border:1.5px solid #c9962e;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600}
+.gold{color:#c9962e;font-weight:600}
+.payout{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#fff;background:#c9962e;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-weight:600}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:440px;width:calc(100% - 32px);background:var(--card);border:1px solid var(--accent2);border-left:4px solid var(--accent2);border-radius:14px;padding:12px 16px;font-size:13px;line-height:1.5;z-index:99;box-shadow:0 6px 24px rgba(0,0,0,.12);opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
 .toast .tw{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;margin-bottom:4px;color:var(--accent2);font-weight:600}
@@ -162,11 +169,41 @@ function windowStart(cad){
   if(cad==='quarterly'){d.setMonth(Math.floor(d.getMonth()/3)*3,1);return d.getTime()}
   return 0; // once
 }
-function doneState(t){
+function doneState(t,forActor){
   const ws=windowStart(t.cadence||'daily');
-  const ev=events.filter(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='reopen')&&e.t>=ws);
+  let ev=events.filter(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='reopen')&&e.t>=ws);
+  if(t.category==='PERSONAL')ev=ev.filter(e=>e.actor===(forActor||actor));
   if(!ev.length)return null;
   return ev[0].type==='complete'?ev[0]:null;
+}
+function bountyState(t){
+  const ev=events.filter(e=>e.task_id===t.id);
+  const paid=ev.find(e=>e.type==='payout');
+  const done=ev.find(e=>e.type==='complete');
+  const claim=ev.find(e=>e.type==='claim');
+  if(paid)return{s:'paid',by:done?done.actor:paid.actor,t:paid.t};
+  if(done)return{s:'done',by:done.actor,t:done.t};
+  if(claim)return{s:'claimed',by:claim.actor,t:claim.t};
+  return{s:'open'};
+}
+function personalClear(aid){
+  const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
+  return per.every(t=>doneState(t,aid));
+}
+async function claimBounty(id){
+  const t=tasks.find(x=>x.id===id);
+  await post({actor,task_id:id,type:'claim',mission:t.mission,msg:`claimed bounty "${t.name}" ($${t.bounty})`});
+}
+async function completeBounty(id){
+  const t=tasks.find(x=>x.id===id);
+  const line='A matter of $'+t.bounty+' concluded. Payment awaits the completion of one\'s duties — and a parent\'s confirmation.';
+  toast('bartleby',line);
+  await post([{actor,task_id:id,type:'complete',mission:t.mission,msg:`completed bounty "${t.name}" ($${t.bounty})`},
+              {actor:'bartleby',type:'agent_msg',mission:t.mission,msg:line}]);
+}
+async function payBounty(id){
+  const t=tasks.find(x=>x.id===id);
+  await post({actor,task_id:id,type:'payout',mission:t.mission,msg:`paid out "${t.name}" ($${t.bounty})`});
 }
 function countWindow(t){
   const ws=windowStart('daily');
@@ -216,7 +253,8 @@ function periodRange(){
   if(period==='MONTH'){const s=new Date(now);s.setDate(s.getDate()-29);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()]}
   const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
 }
-function houseEvents(from,to){return events.filter(e=>e.type!=='agent_msg'&&e.mission==='house'&&e.t>=from&&e.t<=to)}
+const BOUNTY_IDS=()=>new Set(tasks.filter(t=>t.bounty).map(t=>t.id));
+function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
 function tally(aid,from,to){
   const ev=houseEvents(from,to).filter(e=>e.actor===aid);
   const comp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
@@ -248,7 +286,8 @@ function render(){
   if(tab==='report'){renderReport(v);return}
   const m=MISSIONS[tab];
   let html=`<div class="mission"><h2>${m.t}</h2><div class="why">"${m.why}" · <span class="agent-tag">AGENT: ${m.agent.toUpperCase()}</span></div></div>`;
-  const list=visibleTasks(tab);
+  const list=visibleTasks(tab).filter(t=>!t.bounty);
+  const bounties=tab==='house'?visibleTasks('house').filter(t=>t.bounty):[];
   let lastCad=null,lastCat=null;
   CAD_ORDER.forEach(cad=>{
     const inCad=list.filter(t=>(t.cadence||'daily')===cad);
@@ -273,6 +312,21 @@ function render(){
       }
     });
   });
+  if(bounties.length){
+    html+=`<div class="cadence-label" style="color:#c9962e">💰 EXTRAS — EARN</div><div class="section-label">DUTIES SETTLE FIRST — BOUNTIES PAY OUT ONCE YOUR DAILIES ARE DONE</div>`;
+    bounties.forEach(t=>{
+      const b=bountyState(t);
+      if(b.s==='open'){
+        html+=`<div class="task bounty"><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">unclaimed</div></div><button class="claimbtn" onclick="claimBounty('${t.id}')">CLAIM</button><div class="badge">$${t.bounty}</div></div>`;
+      }else if(b.s==='claimed'){
+        const mine=b.by===actor;
+        html+=`<div class="task bounty" style="border-style:dashed"><div class="chk" ${mine?`onclick="completeBounty('${t.id}')"`:''} style="${mine?'':'opacity:.3'}"></div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">claimed by ${actorName(b.by)}</div></div><div class="badge">$${t.bounty}</div></div>`;
+      }else if(b.s==='done'){
+        const payable=personalClear(b.by);
+        html+=`<div class="task bounty done"><div class="chk" style="background:var(--ok);border-color:var(--ok)">✓</div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta"><span class="attr">✓ ${actorName(b.by)}</span> · <span class="gold">${payable?'pending parent payout':'payable once '+actorName(b.by)+"'s dailies are done"}</span></div></div><div class="badge">$${t.bounty}</div></div>`;
+      }
+    });
+  }
   v.innerHTML=html;
 }
 function renderReport(v){
@@ -312,6 +366,22 @@ function renderReport(v){
     const vals=keys.map(k=>buckets[k]);const mx=Math.max(...vals);
     const pts=vals.map((n,i)=>`${(i/(vals.length-1))*300},${40-(n/mx)*36}`).join(' ');
     html+=`<div class="section-label">TREND</div><div class="spark"><svg width="100%" viewBox="0 0 300 44" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${house==='york'?'#279184':'#c06a38'}" stroke-width="2"/></svg></div>`;
+  }
+  const kids=ACTORS.filter(a=>a.h&&!a.adult);
+  const bts=tasks.filter(t=>t.bounty);
+  if(bts.length){
+    html+=`<div class="section-label">EARNINGS</div><table class="board"><tr><th>KID</th><th style="text-align:right">EARNED</th><th style="text-align:right">PENDING</th><th></th></tr>`;
+    kids.forEach(k=>{
+      let earned=0,pending=0,payBtns='';
+      bts.forEach(t=>{const b=bountyState(t);
+        if(b.by!==k.id)return;
+        if(b.s==='paid')earned+=Number(t.bounty);
+        if(b.s==='done'){pending+=Number(t.bounty);
+          if(isAdult(actor)&&personalClear(k.id))payBtns+=`<button class="payout" onclick="payBounty('${t.id}')">PAY $${t.bounty}</button> `;}
+      });
+      html+=`<tr><td>${k.n}</td><td class="num">$${earned}</td><td class="num">$${pending}</td><td style="text-align:right">${payBtns}</td></tr>`;
+    });
+    html+=`</table><div style="font-size:11px;color:var(--dim);margin:4px 18px;font-style:italic">Duties are witnessed above. Extras are paid here. The two never mix.</div>`;
   }
   html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
   v.innerHTML=html;
