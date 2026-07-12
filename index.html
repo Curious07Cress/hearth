@@ -25,8 +25,17 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .housestrip{display:flex;gap:8px;padding:14px 16px 2px}
 .hbtn{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1px;padding:10px 0;border-radius:12px;border:1.5px solid var(--line);background:var(--card2);color:var(--dim);cursor:pointer;transition:all .2s}
 .hbtn.on{border-color:var(--accent);color:var(--accent);background:var(--card);font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.05)}
-.brandrow{display:flex;justify-content:space-between;align-items:center;padding:6px 16px 2px}
+.topline{display:flex;justify-content:space-between;align-items:center;padding:10px 16px 0}
 .brand{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;opacity:.7}
+.topright{display:flex;align-items:center;gap:10px}
+.chip{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.picker{position:fixed;inset:0;background:var(--bg);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px}
+.picker.show{display:flex}
+.picker-title{font-family:'IBM Plex Mono',monospace;font-size:16px;letter-spacing:2px;color:var(--text)}
+.picker-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:0 32px;width:100%;max-width:400px}
+.pcard{background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:22px 0 16px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.pcard .pavatar{width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;font-size:22px;font-weight:700;font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center}
+.pcard .pname{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text);font-weight:600}
 .sync{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px}
 .sync .dot{color:var(--ok)}
 .sync.err .dot{color:var(--danger)}
@@ -84,9 +93,9 @@ table.board td.num{text-align:right;color:var(--accent);font-weight:600}
 </style>
 </head>
 <body class="westford">
+<div class="topline"><div class="brand">hearth</div><div class="topright"><div class="chip" id="meChip" onclick="openPicker()"></div><div class="sync" id="sync"><span class="dot">●</span></div></div></div>
 <div class="housestrip" id="housestrip"></div>
-<div class="brandrow"><div class="brand">hearth · v1.1</div><div class="sync" id="sync"><span class="dot">●</span> SYNCED</div></div>
-<div class="actor-bar" id="actorBar"></div>
+<div class="picker" id="picker"><div class="picker-title">Who's home?</div><div class="picker-grid" id="pickerGrid"></div></div>
 <div class="tabs" id="tabBar"></div>
 <div id="view"></div>
 <div class="toast" id="toast"><div class="tw" id="toastWho"></div><div id="toastMsg"></div></div>
@@ -101,9 +110,10 @@ const CAD_ORDER=['daily','weekly','monthly','quarterly','once'];
 const WREN={done:["FINALLY. Was that so hard?! ...good work. NEXT.","YES! SHIPPED! Okay okay okay — what's next, what's NEXT?!","About time! I've been staring at that task so long my eye twitched."],
 blocked:["THAT TASK NEEDS *YOU*. Ninety seconds of work! NINETY! GO!","I can't do it, the butler can't do it — it's YOURS. Why is it still HERE?!","Every downstream task is WAITING. Do you hear me? WAITING."]};
 const BART={done:["Noted. The house is fractionally more civilized for it.","I shall record this act of diligence in the ledger. Well done.","Splendid. Cooper appears less judgmental already.","Roxy has observed your effort and remains unimpressed. I, however, approve."]};
-let tasks=[],events=[],actor=localStorage.getItem('hearth-actor')||'dad';
+let tasks=[],events=[],actor=localStorage.getItem('hearth-actor')||null;
 let house=localStorage.getItem('hearth-house')||'westford';
 let tab=actor==='dad'?'webapps':'house',period='WEEK',dayOffset=0,syncOK=true;
+const INITIALS={dad:'D',mom:'M',k1:'K1',k2:'K2'};
 const yorkSeason=()=>{const m=new Date().getMonth()+1;return m>=5&&m<=10};
 if(house==='york'&&!yorkSeason())house='westford';
 function el(id){return document.getElementById(id)}
@@ -187,7 +197,8 @@ async function nudge(id){
   toast('wren',line);
   await post({actor:'wren',type:'agent_msg',mission:t.mission,msg:line+` [re: ${t.name}]`});
 }
-function setActor(id){actor=id;localStorage.setItem('hearth-actor',id);if(tab==='webapps'&&id!=='dad')tab='house';render()}
+function setActor(id){actor=id;localStorage.setItem('hearth-actor',id);if(tab==='webapps'&&id!=='dad')tab='house';el('picker').classList.remove('show');render()}
+function openPicker(){el('pickerGrid').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="pcard" onclick="setActor('${a.id}')"><div class="pavatar">${INITIALS[a.id]}</div><div class="pname">${a.n}</div></div>`).join('');el('picker').classList.add('show')}
 function setHouse(h){house=h;localStorage.setItem('hearth-house',h);paint();render()}
 function visibleTabs(){
   const v=[];if(actor==='dad')v.push(['webapps','WEBAPPS']);
@@ -224,7 +235,8 @@ function render(){
   el('housestrip').innerHTML=Object.keys(HOUSES)
     .filter(h=>h!=='york'||yorkSeason())
     .map(h=>`<div class="hbtn ${house===h?'on':''}" onclick="setHouse('${h}')">${HOUSES[h].label}</div>`).join('');
-  el('actorBar').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="actor ${actor===a.id?'on':''}" onclick="setActor('${a.id}')">${a.n}</div>`).join('');
+  el('meChip').textContent=actor?INITIALS[actor]:'?';
+  if(!actor){openPicker()}
   el('tabBar').innerHTML=visibleTabs().map(([k,l])=>`<div class="tab ${tab===k?'on':''}" onclick="tab='${k}';render()">${l}</div>`).join('');
   const v=el('view');
   if(!tasks.length){v.innerHTML='<div class="empty">'+(syncOK?'Loading the ledger…':'Cannot reach the ledger. Check connection.')+'</div>';return}
