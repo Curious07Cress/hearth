@@ -1,3 +1,4 @@
+// hearth v1.1
 import html from './index.html';
 export default {
   async fetch() {
