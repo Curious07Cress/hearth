@@ -134,7 +134,10 @@ async function fetchAll(){
   render();
 }
 async function post(ev){
-  try{const r=await fetch(SB+'/events',{method:'POST',headers:HDRS,body:JSON.stringify(ev)});
+  const arr=Array.isArray(ev)?ev:[ev];
+  const keys=[...new Set(arr.flatMap(o=>Object.keys(o)))];
+  const norm=arr.map(o=>{const n={};keys.forEach(k=>n[k]=k in o?o[k]:null);return n});
+  try{const r=await fetch(SB+'/events',{method:'POST',headers:HDRS,body:JSON.stringify(norm)});
     if(!r.ok){const body=await r.text();throw new Error('HTTP '+r.status+': '+body.slice(0,200))}
     setSync(true)}
   catch(e){setSync(false);toast('bartleby','Ledger write failed — '+e.message)}
