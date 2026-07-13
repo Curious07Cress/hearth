@@ -263,7 +263,7 @@ function setHouse(h){house=h;localStorage.setItem('hearth-house',h);paint();rend
 function visibleTabs(){
   const v=[];if(actor==='dad')v.push(['webapps','WEBAPPS']);
   v.push(['house','HOUSEHOLD'],['ledger','LEDGER'],['report','REPORT']);
-  if(isAdult(actor))v.push(['admin','ADMIN']);
+  if(actor==='dad')v.push(['admin','ADMIN']);
   return v;
 }
 let armed=null;
@@ -274,7 +274,7 @@ function arm(id,fn){
 async function del(query,logMsg){
   try{const r=await fetch(SB+'/events?'+query,{method:'DELETE',headers:HDRS});if(!r.ok)throw 0;
     await post({actor,type:'admin',mission:'house',msg:logMsg});}
-  catch(e){toast('bartleby','The purge failed. The ledger resists.');await fetchAll()}
+  catch(e){toast('bartleby','Reset failed — likely missing the delete policy (see SQL).');await fetchAll()}
 }
 function todayISO(){const d=new Date();d.setHours(0,0,0,0);return d.toISOString()}
 async function resetBounty(id){await del('task_id=eq.'+id,`admin: reset bounty "${id}"`)}
@@ -288,10 +288,11 @@ async function postBounty(){
     mission:'house',name,category:'EXTRAS',shared:false,countable:false,
     house:el('nbHouse').value,cadence:el('nbCad').value,audience:'all',sort:250,
     bounty:amt,assigned_to:el('nbWho').value||null,requires_training:el('nbTrain').checked};
-  try{const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(nb)});if(!r.ok)throw 0;
+  try{const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(nb)});
+    if(!r.ok){const b=await r.text();throw new Error('HTTP '+r.status+': '+b.slice(0,180))}
     await post({actor,type:'admin',mission:'house',msg:`admin: posted bounty "${name}" ($${amt})`});
     toast('bartleby','A matter of $'+amt+' has been posted. I shall inform the household.');}
-  catch(e){toast('bartleby','The posting failed. Do check the details.');await fetchAll()}
+  catch(e){toast('bartleby','Posting failed — '+e.message);await fetchAll()}
 }
 function visibleTasks(mission){
   return tasks.filter(t=>t.mission===mission)
