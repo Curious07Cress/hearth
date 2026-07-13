@@ -110,7 +110,7 @@ body.york .task.bounty{background:#fbf7e8}
 const SB='https://wxifknodqieeuegsglnq.supabase.co/rest/v1';
 const KEY='sb_publishable_y2CtDezvstqPQfVqW2ORHw_mY1FoLNs';
 const HDRS={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
-const ACTORS=[{id:'dad',n:'Dad',h:1,adult:1},{id:'mom',n:'Mom',h:1,adult:1},{id:'k1',n:'Kid 1',h:1},{id:'k2',n:'Kid 2',h:1},{id:'wren',n:'Wren'},{id:'bartleby',n:'Bartleby'}];
+const ACTORS=[{id:'dad',n:'Eric',h:1,adult:1},{id:'mom',n:'Charlene',h:1,adult:1},{id:'k1',n:'Sofia',h:1},{id:'k2',n:'Emma',h:1},{id:'wren',n:'Wren'},{id:'bartleby',n:'Bartleby'}];
 const MISSIONS={webapps:{t:'SHIP THE WEB APPS',why:'Validate BOM Intelligence with a paying customer; build the family\'s task OS.',agent:'Wren'},house:{t:'RUN A HOUSE WE\'RE PROUD OF',why:'Shared ownership habits that outlast the chore list.',agent:'Bartleby'}};
 const HOUSES={westford:{label:'🏠 WESTFORD',bg:'#fdfbf7'},york:{label:'🌊 YORK',bg:'#fbfdfd'}};
 const CAD_ORDER=['daily','weekly','monthly','quarterly','once'];
@@ -120,7 +120,7 @@ const BART={done:["Noted. The house is fractionally more civilized for it.","I s
 let tasks=[],events=[],actor=localStorage.getItem('hearth-actor')||null;
 let house=localStorage.getItem('hearth-house')||'westford';
 let tab=actor==='dad'?'webapps':'house',period='WEEK',dayOffset=0,syncOK=true;
-const INITIALS={dad:'D',mom:'M',k1:'K1',k2:'K2'};
+const INITIALS={dad:'E',mom:'C',k1:'S',k2:'Em'};
 const yorkSeason=()=>{const m=new Date().getMonth()+1;return m>=5&&m<=10};
 if(house==='york'&&!yorkSeason())house='westford';
 function el(id){return document.getElementById(id)}
