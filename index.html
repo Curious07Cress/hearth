@@ -93,6 +93,12 @@ body.york .task.bounty{background:#fbf7e8}
 .badge{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;color:#c9962e;background:#fff;border:1.5px solid #ecd9a8;border-radius:10px;padding:4px 9px;white-space:nowrap}
 .claimbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#c9962e;background:#fff;border:1.5px solid #c9962e;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600}
 .gold{color:#c9962e;font-weight:600}
+.danger-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#fff;background:var(--danger);border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:600}
+.admin-form{margin:8px 16px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.admin-form input,.admin-form select{font-family:'IBM Plex Mono',monospace;font-size:13px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--text);outline:none}
+.admin-form .row{display:flex;gap:8px}
+.admin-form .row>*{flex:1}
+.admin-form label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px;display:flex;align-items:center;gap:6px}
 .payout{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#fff;background:#c9962e;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-weight:600}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:440px;width:calc(100% - 32px);background:var(--card);border:1px solid var(--accent2);border-left:4px solid var(--accent2);border-radius:14px;padding:12px 16px;font-size:13px;line-height:1.5;z-index:99;box-shadow:0 6px 24px rgba(0,0,0,.12);opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
@@ -256,7 +262,36 @@ function openPicker(){el('pickerGrid').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<
 function setHouse(h){house=h;localStorage.setItem('hearth-house',h);paint();render()}
 function visibleTabs(){
   const v=[];if(actor==='dad')v.push(['webapps','WEBAPPS']);
-  v.push(['house','HOUSEHOLD'],['ledger','LEDGER'],['report','REPORT']);return v;
+  v.push(['house','HOUSEHOLD'],['ledger','LEDGER'],['report','REPORT']);
+  if(isAdult(actor))v.push(['admin','ADMIN']);
+  return v;
+}
+let armed=null;
+function arm(id,fn){
+  if(armed===id){armed=null;fn()}
+  else{armed=id;render();setTimeout(()=>{if(armed===id){armed=null;render()}},3000)}
+}
+async function del(query,logMsg){
+  try{const r=await fetch(SB+'/events?'+query,{method:'DELETE',headers:HDRS});if(!r.ok)throw 0;
+    await post({actor,type:'admin',mission:'house',msg:logMsg});}
+  catch(e){toast('bartleby','The purge failed. The ledger resists.');await fetchAll()}
+}
+function todayISO(){const d=new Date();d.setHours(0,0,0,0);return d.toISOString()}
+async function resetBounty(id){await del('task_id=eq.'+id,`admin: reset bounty "${id}"`)}
+async function resetAllBounties(){const ids=tasks.filter(t=>t.bounty).map(t=>t.id).join(',');await del('task_id=in.('+ids+')','admin: reset ALL bounties')}
+async function resetAllowance(kid){await del('type=eq.allowance'+(kid?'&target=eq.'+kid:''),'admin: cleared allowance'+(kid?' for '+actorName(kid):' (all)'))}
+async function resetDailies(kid){await del('task_id=in.(bed-made,floor-cleared,bathroom-tidy)&actor=eq.'+kid+'&created_at=gte.'+todayISO(),`admin: reset today's dailies for ${actorName(kid)}`)}
+async function postBounty(){
+  const name=el('nbName').value.trim(),amt=Number(el('nbAmt').value);
+  if(!name||!amt){toast('bartleby','A bounty requires both a name and a sum.');return}
+  const nb={id:'bounty-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
+    mission:'house',name,category:'EXTRAS',shared:false,countable:false,
+    house:el('nbHouse').value,cadence:el('nbCad').value,audience:'all',sort:250,
+    bounty:amt,assigned_to:el('nbWho').value||null,requires_training:el('nbTrain').checked};
+  try{const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(nb)});if(!r.ok)throw 0;
+    await post({actor,type:'admin',mission:'house',msg:`admin: posted bounty "${name}" ($${amt})`});
+    toast('bartleby','A matter of $'+amt+' has been posted. I shall inform the household.');}
+  catch(e){toast('bartleby','The posting failed. Do check the details.');await fetchAll()}
 }
 function visibleTasks(mission){
   return tasks.filter(t=>t.mission===mission)
@@ -271,7 +306,7 @@ function periodRange(){
   const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
 }
 const BOUNTY_IDS=()=>new Set(tasks.filter(t=>t.bounty).map(t=>t.id));
-function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
+function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.type!=='admin'&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
 function tally(aid,from,to){
   const ev=houseEvents(from,to).filter(e=>e.actor===aid);
   const comp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
@@ -301,6 +336,7 @@ function render(){
     return;
   }
   if(tab==='report'){renderReport(v);return}
+  if(tab==='admin'){renderAdmin(v);return}
   const m=MISSIONS[tab];
   let html=`<div class="mission"><h2>${m.t}</h2><div class="why">"${m.why}" · <span class="agent-tag">AGENT: ${m.agent.toUpperCase()}</span></div></div>`;
   const list=visibleTasks(tab).filter(t=>!t.bounty);
@@ -353,6 +389,31 @@ function render(){
       }
     });
   }
+  v.innerHTML=html;
+}
+function renderAdmin(v){
+  const kids=ACTORS.filter(a=>a.h&&!a.adult);
+  let html=`<div class="section-label" style="margin-top:16px">BOUNTY RESETS — DELETES THAT BOUNTY'S LEDGER EVENTS</div>`;
+  tasks.filter(t=>t.bounty).forEach(t=>{
+    const b=bountyState(t);
+    html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div><div class="tmeta">state: ${b.s}${b.by?' · '+actorName(b.by):''} · $${t.bounty}</div></div><button class="danger-btn" onclick="arm('rb-${t.id}',()=>resetBounty('${t.id}'))">${armed==='rb-'+t.id?'SURE?':'RESET'}</button></div>`;
+  });
+  html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">All bounties</div></div><button class="danger-btn" onclick="arm('rball',()=>resetAllBounties())">${armed==='rball'?'SURE?':'RESET ALL'}</button></div>`;
+  html+=`<div class="section-label">ALLOWANCE</div>`;
+  kids.forEach(k=>{html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">Clear ${k.n}'s allowance payments</div></div><button class="danger-btn" onclick="arm('ra-${k.id}',()=>resetAllowance('${k.id}'))">${armed==='ra-'+k.id?'SURE?':'CLEAR'}</button></div>`});
+  html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">Clear all allowance payments</div></div><button class="danger-btn" onclick="arm('raall',()=>resetAllowance())">${armed==='raall'?'SURE?':'CLEAR ALL'}</button></div>`;
+  html+=`<div class="section-label">TODAY'S PERSONAL DAILIES — FOR RE-TESTING THE UNLOCK GATE</div>`;
+  kids.forEach(k=>{html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">Reset ${k.n}'s dailies (today)</div></div><button class="danger-btn" onclick="arm('rd-${k.id}',()=>resetDailies('${k.id}'))">${armed==='rd-'+k.id?'SURE?':'RESET'}</button></div>`});
+  html+=`<div class="section-label">POST A BOUNTY</div>
+  <div class="admin-form">
+    <input id="nbName" placeholder="Task name">
+    <div class="row"><input id="nbAmt" type="number" placeholder="$"><select id="nbHouse"><option value="both">Both houses</option><option value="westford">Westford</option><option value="york">York</option></select></div>
+    <div class="row"><select id="nbCad"><option value="once">One-time</option><option value="weekly">Weekly (standing)</option></select>
+    <select id="nbWho"><option value="">Open to anyone</option>${kids.map(k=>`<option value="${k.id}">${k.n}</option>`).join('')}</select></div>
+    <label><input type="checkbox" id="nbTrain"> Requires parent approval (training)</label>
+    <button class="payout" style="padding:10px" onclick="postBounty()">POST BOUNTY</button>
+  </div>
+  <div class="empty">Every admin action is logged to the ledger.</div>`;
   v.innerHTML=html;
 }
 function renderReport(v){
