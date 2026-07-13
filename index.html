@@ -177,14 +177,27 @@ function doneState(t,forActor){
   return ev[0].type==='complete'?ev[0]:null;
 }
 function bountyState(t){
-  const ev=events.filter(e=>e.task_id===t.id);
+  const ws=windowStart(t.cadence||'once');
+  const ev=events.filter(e=>e.task_id===t.id&&e.t>=ws);
   const paid=ev.find(e=>e.type==='payout');
   const done=ev.find(e=>e.type==='complete');
   const claim=ev.find(e=>e.type==='claim');
-  if(paid)return{s:'paid',by:done?done.actor:paid.actor,t:paid.t};
+  const req=ev.find(e=>e.type==='claim_request');
+  if(paid)return{s:'paid',by:done?done.actor:(paid.target||paid.actor),t:paid.t};
   if(done)return{s:'done',by:done.actor,t:done.t};
-  if(claim)return{s:'claimed',by:claim.actor,t:claim.t};
+  if(t.assigned_to)return{s:'claimed',by:t.assigned_to,standing:true};
+  if(claim)return{s:'claimed',by:claim.target||claim.actor,t:claim.t};
+  if(req)return{s:'requested',by:req.actor,t:req.t};
   return{s:'open'};
+}
+async function requestClaim(id){
+  const t=tasks.find(x=>x.id===id);
+  toast('bartleby','A request for parental approval has been dispatched. Do occupy yourself productively in the interim.');
+  await post({actor,task_id:id,type:'claim_request',mission:t.mission,msg:`requested to claim "${t.name}" ($${t.bounty}) — needs training approval`});
+}
+async function approveClaim(id,kid){
+  const t=tasks.find(x=>x.id===id);
+  await post({actor,task_id:id,type:'claim',mission:t.mission,target:kid,msg:`approved ${actorName(kid)}'s claim on "${t.name}"`});
 }
 function personalClear(aid){
   const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
@@ -192,6 +205,7 @@ function personalClear(aid){
 }
 async function claimBounty(id){
   const t=tasks.find(x=>x.id===id);
+  if(t.requires_training&&!isAdult(actor)){return requestClaim(id)}
   await post({actor,task_id:id,type:'claim',mission:t.mission,msg:`claimed bounty "${t.name}" ($${t.bounty})`});
 }
 async function completeBounty(id){
@@ -201,12 +215,15 @@ async function completeBounty(id){
   await post([{actor,task_id:id,type:'complete',mission:t.mission,msg:`completed bounty "${t.name}" ($${t.bounty})`},
               {actor:'bartleby',type:'agent_msg',mission:t.mission,msg:line}]);
 }
+async function payAllowance(kid,amt){
+  await post({actor,type:'allowance',mission:'house',target:kid,qty:amt,msg:`weekly allowance paid to ${actorName(kid)} ($${amt})`});
+}
 async function payBounty(id){
   const t=tasks.find(x=>x.id===id);
   await post({actor,task_id:id,type:'payout',mission:t.mission,msg:`paid out "${t.name}" ($${t.bounty})`});
 }
 function countWindow(t){
-  const ws=windowStart('daily');
+  const ws=windowStart(t.cadence||'daily');
   return events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=ws).reduce((s,e)=>s+(e.qty||1),0);
 }
 async function toggle(id){
@@ -254,7 +271,7 @@ function periodRange(){
   const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
 }
 const BOUNTY_IDS=()=>new Set(tasks.filter(t=>t.bounty).map(t=>t.id));
-function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
+function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
 function tally(aid,from,to){
   const ev=houseEvents(from,to).filter(e=>e.actor===aid);
   const comp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
@@ -298,29 +315,38 @@ function render(){
       if(t.category&&t.category!==lastCat){html+=`<div class="section-label">${t.category}</div>`;lastCat=t.category}
       if(t.countable){
         const n=countWindow(t);
-        const who=events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=windowStart('daily'))[0];
+        const who=events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=windowStart(t.cadence||'daily'))[0];
         html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div>${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}')">+</button></div></div>`;
       }else{
         const done=doneState(t);
         const attrTime=done?((t.cadence||'daily')==='daily'?tmOnly(done.t):dOnly(done.t)+' '+tmOnly(done.t)):null;
+        const mine=!t.assigned_to||t.assigned_to===actor;
         html+=`<div class="task ${done?'done':''}">
-          <div class="chk" onclick="toggle('${t.id}')">${done?'✓':''}</div>
+          <div class="chk" ${mine?`onclick="toggle('${t.id}')"`:'style="opacity:.3"'}>${done?'✓':''}</div>
           <div style="flex:1"><div class="tname">${t.name}</div>
-          <div class="tmeta">${done?`<span class="attr">✓ ${actorName(done.actor)}, ${attrTime}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
+          <div class="tmeta">${done?`<span class="attr">✓ ${actorName(done.actor)}, ${attrTime}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
           ${t.blocked_on&&!done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
         </div>`;
       }
     });
   });
   if(bounties.length){
-    html+=`<div class="cadence-label" style="color:#c9962e">💰 EXTRAS — EARN</div><div class="section-label">DUTIES SETTLE FIRST — BOUNTIES PAY OUT ONCE YOUR DAILIES ARE DONE</div>`;
+    let unlockCopy='DUTIES SETTLE FIRST — BOUNTIES PAY OUT ONCE YOUR DAILIES ARE DONE';
+    if(!isAdult(actor)){
+      const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
+      const remaining=per.filter(t=>!doneState(t)).map(t=>t.name.toLowerCase());
+      unlockCopy=remaining.length?('🔒 TO UNLOCK PAY: '+remaining.join(' · ')).toUpperCase():'🔓 DAILIES DONE — YOUR BOUNTIES PAY OUT';
+    }
+    html+=`<div class="cadence-label" style="color:#c9962e">💰 EXTRAS — EARN</div><div class="section-label">${unlockCopy}</div>`;
     bounties.forEach(t=>{
       const b=bountyState(t);
       if(b.s==='open'){
-        html+=`<div class="task bounty"><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">unclaimed</div></div><button class="claimbtn" onclick="claimBounty('${t.id}')">CLAIM</button><div class="badge">$${t.bounty}</div></div>`;
+        html+=`<div class="task bounty"><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">unclaimed${t.requires_training?' · needs parent approval':''}</div></div><button class="claimbtn" onclick="claimBounty('${t.id}')">CLAIM</button><div class="badge">$${t.bounty}</div></div>`;
+      }else if(b.s==='requested'){
+        html+=`<div class="task bounty" style="border-style:dashed"><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">⏳ ${actorName(b.by)} awaiting parent approval</div></div>${isAdult(actor)?`<button class="claimbtn" onclick="approveClaim('${t.id}','${b.by}')">APPROVE</button>`:''}<div class="badge">$${t.bounty}</div></div>`;
       }else if(b.s==='claimed'){
         const mine=b.by===actor;
-        html+=`<div class="task bounty" style="border-style:dashed"><div class="chk" ${mine?`onclick="completeBounty('${t.id}')"`:''} style="${mine?'':'opacity:.3'}"></div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">claimed by ${actorName(b.by)}</div></div><div class="badge">$${t.bounty}</div></div>`;
+        html+=`<div class="task bounty" style="border-style:dashed"><div class="chk" ${mine?`onclick="completeBounty('${t.id}')"`:''} style="${mine?'':'opacity:.3'}"></div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">${b.standing?actorName(b.by)+"'s standing task":'claimed by '+actorName(b.by)}</div></div><div class="badge">$${t.bounty}</div></div>`;
       }else if(b.s==='done'){
         const payable=personalClear(b.by);
         html+=`<div class="task bounty done"><div class="chk" style="background:var(--ok);border-color:var(--ok)">✓</div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta"><span class="attr">✓ ${actorName(b.by)}</span> · <span class="gold">${payable?'pending parent payout':'payable once '+actorName(b.by)+"'s dailies are done"}</span></div></div><div class="badge">$${t.bounty}</div></div>`;
@@ -373,6 +399,7 @@ function renderReport(v){
     html+=`<div class="section-label">EARNINGS</div><table class="board"><tr><th>KID</th><th style="text-align:right">EARNED</th><th style="text-align:right">PENDING</th><th></th></tr>`;
     kids.forEach(k=>{
       let earned=0,pending=0,payBtns='';
+      earned+=events.filter(e=>e.type==='allowance'&&e.target===k.id&&e.t>=from&&e.t<=to).reduce((s,e)=>s+(e.qty||0),0);
       bts.forEach(t=>{const b=bountyState(t);
         if(b.by!==k.id)return;
         if(b.s==='paid')earned+=Number(t.bounty);
@@ -381,7 +408,22 @@ function renderReport(v){
       });
       html+=`<tr><td>${k.n}</td><td class="num">$${earned}</td><td class="num">$${pending}</td><td style="text-align:right">${payBtns}</td></tr>`;
     });
-    html+=`</table><div style="font-size:11px;color:var(--dim);margin:4px 18px;font-style:italic">Duties are witnessed above. Extras are paid here. The two never mix.</div>`;
+    html+=`</table>`;
+    // allowance: 6-of-7 days with all personal dailies done
+    const ALLOWANCE=10;
+    html+=`<div class="section-label">WEEKLY ALLOWANCE — $${ALLOWANCE} · DUTIES 6 OF 7 DAYS</div><table class="board"><tr><th>KID</th><th style="text-align:right">DAYS KEPT</th><th style="text-align:right">STATUS</th><th></th></tr>`;
+    const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
+    kids.forEach(k=>{
+      let kept=0;
+      for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const dk=dayKey(d.getTime());
+        if(per.every(t=>events.some(e=>e.task_id===t.id&&e.type==='complete'&&e.actor===k.id&&dayKey(e.t)===dk)))kept++;}
+      const eligible=kept>=6;
+      const paidThisWeek=events.some(e=>e.type==='allowance'&&e.target===k.id&&e.t>=windowStart('weekly'));
+      let status=paidThisWeek?'PAID ✓':eligible?'ELIGIBLE':'—';
+      let btn=(isAdult(actor)&&eligible&&!paidThisWeek)?`<button class="payout" onclick="payAllowance('${k.id}',${ALLOWANCE})">PAY $${ALLOWANCE}</button>`:'';
+      html+=`<tr><td>${k.n}</td><td class="num">${kept}/7</td><td class="num">${status}</td><td style="text-align:right">${btn}</td></tr>`;
+    });
+    html+=`</table><div style="font-size:11px;color:var(--dim);margin:4px 18px;font-style:italic">Allowance is the salary; bounties are gig work. Duties are witnessed above — the two never mix.</div>`;
   }
   html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
   v.innerHTML=html;
