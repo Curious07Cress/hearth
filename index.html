@@ -120,6 +120,8 @@ const ACTORS=[{id:'dad',n:'Eric',h:1,adult:1},{id:'mom',n:'Charlene',h:1,adult:1
 const MISSIONS={webapps:{t:'SHIP THE WEB APPS',why:'Validate BOM Intelligence with a paying customer; build the family\'s task OS.',agent:'Wren'},house:{t:'RUN A HOUSE WE\'RE PROUD OF',why:'Shared ownership habits that outlast the chore list.',agent:'Bartleby'}};
 const HOUSES={westford:{label:'🏠 WESTFORD',bg:'#fdfbf7'},york:{label:'🌊 YORK',bg:'#fbfdfd'}};
 const CAD_ORDER=['daily','weekly','monthly','quarterly','once'];
+const CAT_EMOJI={'PETS':'🐾','KITCHEN':'🍽️','PERSONAL':'🛏️','COMMON':'🏠','LAUNDRY':'🧺','BATHROOMS':'🚿','HOUSE':'🧹','POOL & HOT TUB':'💧','CARS':'🚗','MAINTENANCE':'🔧','EXTRAS':'💰'};
+function catLabel(cat){const disp=cat==='PERSONAL'?'PERSONAL DAILIES':cat;return (CAT_EMOJI[cat]?CAT_EMOJI[cat]+' ':'')+disp}
 const WREN={done:["FINALLY. Was that so hard?! ...good work. NEXT.","YES! SHIPPED! Okay okay okay — what's next, what's NEXT?!","About time! I've been staring at that task so long my eye twitched."],
 blocked:["THAT TASK NEEDS *YOU*. Ninety seconds of work! NINETY! GO!","I can't do it, the butler can't do it — it's YOURS. Why is it still HERE?!","Every downstream task is WAITING. Do you hear me? WAITING."]};
 const BART={done:["Noted. The house is fractionally more civilized for it.","I shall record this act of diligence in the ledger. Well done.","Splendid. Cooper appears less judgmental already.","Roxy has observed your effort and remains unimpressed. I, however, approve."]};
@@ -349,7 +351,7 @@ function render(){
     if(tab==='house')html+=`<div class="cadence-label">${cad.toUpperCase()}</div>`;
     lastCat=null;
     inCad.forEach(t=>{
-      if(t.category&&t.category!==lastCat){html+=`<div class="section-label">${t.category}</div>`;lastCat=t.category}
+      if(t.category&&t.category!==lastCat){html+=`<div class="section-label">${catLabel(t.category)}</div>`;lastCat=t.category}
       if(t.countable){
         const n=countWindow(t);
         const who=events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=windowStart(t.cadence||'daily'))[0];
@@ -368,11 +370,11 @@ function render(){
     });
   });
   if(bounties.length){
-    let unlockCopy='DUTIES SETTLE FIRST — BOUNTIES PAY OUT ONCE YOUR DAILIES ARE DONE';
+    let unlockCopy='DUTIES SETTLE FIRST — BOUNTIES PAY OUT ONCE PERSONAL DAILIES ARE DONE';
     if(!isAdult(actor)){
       const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
       const remaining=per.filter(t=>!doneState(t)).map(t=>t.name.toLowerCase());
-      unlockCopy=remaining.length?('🔒 TO UNLOCK PAY: '+remaining.join(' · ')).toUpperCase():'🔓 DAILIES DONE — YOUR BOUNTIES PAY OUT';
+      unlockCopy=remaining.length?('🔒 TO UNLOCK PAY: '+remaining.join(' · ')).toUpperCase():'🔓 PERSONAL DAILIES DONE — YOUR BOUNTIES PAY OUT';
     }
     html+=`<div class="cadence-label" style="color:#c9962e">💰 EXTRAS — EARN</div><div class="section-label">${unlockCopy}</div>`;
     bounties.forEach(t=>{
@@ -386,7 +388,7 @@ function render(){
         html+=`<div class="task bounty" style="border-style:dashed"><div class="chk" ${mine?`onclick="completeBounty('${t.id}')"`:''} style="${mine?'':'opacity:.3'}"></div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">${b.standing?actorName(b.by)+"'s standing task":'claimed by '+actorName(b.by)}</div></div><div class="badge">$${t.bounty}</div></div>`;
       }else if(b.s==='done'){
         const payable=personalClear(b.by);
-        html+=`<div class="task bounty done"><div class="chk" style="background:var(--ok);border-color:var(--ok)">✓</div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta"><span class="attr">✓ ${actorName(b.by)}</span> · <span class="gold">${payable?'pending parent payout':'payable once '+actorName(b.by)+"'s dailies are done"}</span></div></div><div class="badge">$${t.bounty}</div></div>`;
+        html+=`<div class="task bounty done"><div class="chk" style="background:var(--ok);border-color:var(--ok)">✓</div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta"><span class="attr">✓ ${actorName(b.by)}</span> · <span class="gold">${payable?'pending parent payout':'payable once '+actorName(b.by)+"'s personal dailies are done"}</span></div></div><div class="badge">$${t.bounty}</div></div>`;
       }
     });
   }
@@ -473,7 +475,7 @@ function renderReport(v){
     html+=`</table>`;
     // allowance: 6-of-7 days with all personal dailies done
     const ALLOWANCE=10;
-    html+=`<div class="section-label">WEEKLY ALLOWANCE — $${ALLOWANCE} · DUTIES 6 OF 7 DAYS</div><table class="board"><tr><th>KID</th><th style="text-align:right">DAYS KEPT</th><th style="text-align:right">STATUS</th><th></th></tr>`;
+    html+=`<div class="section-label">WEEKLY ALLOWANCE — $${ALLOWANCE} · PERSONAL DAILIES 6 OF 7 DAYS</div><table class="board"><tr><th>KID</th><th style="text-align:right">DAYS KEPT</th><th style="text-align:right">STATUS</th><th></th></tr>`;
     const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
     kids.forEach(k=>{
       let kept=0;
