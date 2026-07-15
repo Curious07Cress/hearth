@@ -93,6 +93,14 @@ body.york .task.bounty{background:#fbf7e8}
 .badge{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;color:#c9962e;background:#fff;border:1.5px solid #ecd9a8;border-radius:10px;padding:4px 9px;white-space:nowrap}
 .claimbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#c9962e;background:#fff;border:1.5px solid #c9962e;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600}
 .gold{color:#c9962e;font-weight:600}
+.sechead{display:flex;align-items:center;gap:10px;margin:14px 16px 4px;padding:12px 14px;background:var(--card2);border:1px solid var(--line);border-radius:14px;cursor:pointer}
+.sechead .sl{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--accent);font-weight:600;flex:1}
+.sechead .sc{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);font-weight:600}
+.sechead .sc.clear{color:var(--ok)}
+.sechead .chev{color:var(--dim);font-size:12px;transition:transform .2s}
+.sechead.open .chev{transform:rotate(90deg)}
+.sechead.gold{border-color:#ecd9a8}
+.sechead.gold .sl{color:#c9962e}
 .danger-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#fff;background:var(--danger);border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:600}
 .admin-form{margin:8px 16px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .admin-form input,.admin-form select{font-family:'IBM Plex Mono',monospace;font-size:13px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--text);outline:none}
@@ -128,6 +136,10 @@ const BART={done:["Noted. The house is fractionally more civilized for it.","I s
 let tasks=[],events=[],actor=localStorage.getItem('hearth-actor')||null;
 let house=localStorage.getItem('hearth-house')||'westford';
 let tab=actor==='dad'?'webapps':'house',period='WEEK',dayOffset=0,syncOK=true;
+let secOverrides=JSON.parse(localStorage.getItem('hearth-collapse')||'{}');
+function toggleSec(k){const cur=secOpen(k);secOverrides[k]=!cur;localStorage.setItem('hearth-collapse',JSON.stringify(secOverrides));render()}
+let secDefaults={};
+function secOpen(k){return k in secOverrides?secOverrides[k]:(secDefaults[k]||false)}
 const INITIALS={dad:'E',mom:'C',k1:'S',k2:'Em'};
 const yorkSeason=()=>{const m=new Date().getMonth()+1;return m>=5&&m<=10};
 if(house==='york'&&!yorkSeason())house='westford';
@@ -344,53 +356,74 @@ function render(){
   let html=`<div class="mission"><h2>${m.t}</h2><div class="why">"${m.why}" · <span class="agent-tag">AGENT: ${m.agent.toUpperCase()}</span></div></div>`;
   const list=visibleTasks(tab).filter(t=>!t.bounty);
   const bounties=tab==='house'?visibleTasks('house').filter(t=>t.bounty):[];
-  let lastCad=null,lastCat=null;
-  CAD_ORDER.forEach(cad=>{
-    const inCad=list.filter(t=>(t.cadence||'daily')===cad);
-    if(!inCad.length)return;
-    if(tab==='house')html+=`<div class="cadence-label">${cad.toUpperCase()}</div>`;
-    lastCat=null;
-    inCad.forEach(t=>{
-      if(t.category&&t.category!==lastCat){html+=`<div class="section-label">${catLabel(t.category)}</div>`;lastCat=t.category}
-      if(t.countable){
-        const n=countWindow(t);
-        const who=events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=windowStart(t.cadence||'daily'))[0];
-        html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div>${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}')">+</button></div></div>`;
-      }else{
-        const done=doneState(t);
-        const attrTime=done?((t.cadence||'daily')==='daily'?tmOnly(done.t):dOnly(done.t)+' '+tmOnly(done.t)):null;
-        const mine=!t.assigned_to||t.assigned_to===actor;
-        html+=`<div class="task ${done?'done':''}">
-          <div class="chk" ${mine?`onclick="toggle('${t.id}')"`:'style="opacity:.3"'}>${done?'✓':''}</div>
-          <div style="flex:1"><div class="tname">${t.name}</div>
-          <div class="tmeta">${done?`<span class="attr">✓ ${actorName(done.actor)}, ${attrTime}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
-          ${t.blocked_on&&!done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
-        </div>`;
-      }
-    });
-  });
+  function taskCard(t){
+    if(t.countable){
+      const n=countWindow(t);
+      const who=events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=windowStart(t.cadence||'daily'))[0];
+      return `<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div>${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}')">+</button></div></div>`;
+    }
+    const done=doneState(t);
+    const attrTime=done?((t.cadence||'daily')==='daily'?tmOnly(done.t):dOnly(done.t)+' '+tmOnly(done.t)):null;
+    const mine=!t.assigned_to||t.assigned_to===actor;
+    return `<div class="task ${done?'done':''}">
+      <div class="chk" ${mine?`onclick="toggle('${t.id}')"`:'style="opacity:.3"'}>${done?'✓':''}</div>
+      <div style="flex:1"><div class="tname">${t.name}</div>
+      <div class="tmeta">${done?`<span class="attr">✓ ${actorName(done.actor)}, ${attrTime}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
+      ${t.blocked_on&&!done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
+    </div>`;
+  }
+  function catGroup(ts){
+    let out='',lastCat=null;
+    ts.forEach(t=>{if(t.category&&t.category!==lastCat){out+=`<div class="section-label">${catLabel(t.category)}</div>`;lastCat=t.category}out+=taskCard(t)});
+    return out;
+  }
+  if(tab==='webapps'){
+    html+=catGroup(list);
+    v.innerHTML=html;return;
+  }
+  // ---- collapsible household sections ----
+  const per=list.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
+  const daily=list.filter(t=>(t.cadence||'daily')==='daily'&&!(t.category==='PERSONAL'));
+  const weekly=list.filter(t=>t.cadence==='weekly');
+  const periodic=list.filter(t=>t.cadence==='monthly'||t.cadence==='quarterly');
+  const perDone=per.length&&per.every(t=>doneState(t));
+  const openBounties=bounties.filter(t=>['open','requested','claimed'].includes(bountyState(t).s));
+  const openSum=openBounties.reduce((s,t)=>s+Number(t.bounty),0);
+  secDefaults={personal:!perDone,daily:false,weekly:false,periodic:false,
+    extras:!isAdult(actor)&&personalClear(actor)&&openBounties.length>0};
+  function remaining(ts){return ts.filter(t=>!t.countable&&!doneState(t)).length}
+  function section(key,label,ts,body,countStr){
+    const open=secOpen(key);
+    const rem=countStr!==undefined?countStr:(remaining(ts)?remaining(ts)+' left':'✓');
+    html+=`<div class="sechead ${open?'open':''} ${key==='extras'?'gold':''}" onclick="toggleSec('${key}')"><span class="chev">▶</span><span class="sl">${label}</span><span class="sc ${rem==='✓'?'clear':''}">${rem}</span></div>`;
+    if(open)html+=body;
+  }
+  section('personal','🛏️ PERSONAL DAILIES',per,catGroup(per).replace(/<div class="section-label">.*?<\/div>/,''));
+  section('daily','☀️ DAILY',daily,catGroup(daily));
+  section('weekly','🗓️ WEEKLY',weekly,catGroup(weekly));
+  section('periodic','📅 MONTHLY & QUARTERLY',periodic,catGroup(periodic));
   if(bounties.length){
     let unlockCopy='DUTIES SETTLE FIRST — BOUNTIES PAY OUT ONCE PERSONAL DAILIES ARE DONE';
     if(!isAdult(actor)){
-      const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
-      const remaining=per.filter(t=>!doneState(t)).map(t=>t.name.toLowerCase());
-      unlockCopy=remaining.length?('🔒 TO UNLOCK PAY: '+remaining.join(' · ')).toUpperCase():'🔓 PERSONAL DAILIES DONE — YOUR BOUNTIES PAY OUT';
+      const remainingP=per.filter(t=>!doneState(t)).map(t=>t.name.toLowerCase());
+      unlockCopy=remainingP.length?('🔒 TO UNLOCK PAY: '+remainingP.join(' · ')).toUpperCase():'🔓 PERSONAL DAILIES DONE — YOUR BOUNTIES PAY OUT';
     }
-    html+=`<div class="cadence-label" style="color:#c9962e">💰 EXTRAS — EARN</div><div class="section-label">${unlockCopy}</div>`;
+    let bHtml=`<div class="section-label">${unlockCopy}</div>`;
     bounties.forEach(t=>{
       const b=bountyState(t);
       if(b.s==='open'){
-        html+=`<div class="task bounty"><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">unclaimed${t.requires_training?' · needs parent approval':''}</div></div><button class="claimbtn" onclick="claimBounty('${t.id}')">CLAIM</button><div class="badge">$${t.bounty}</div></div>`;
+        bHtml+=`<div class="task bounty"><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">unclaimed${t.requires_training?' · needs parent approval':''}</div></div><button class="claimbtn" onclick="claimBounty('${t.id}')">CLAIM</button><div class="badge">$${t.bounty}</div></div>`;
       }else if(b.s==='requested'){
-        html+=`<div class="task bounty" style="border-style:dashed"><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">⏳ ${actorName(b.by)} awaiting parent approval</div></div>${isAdult(actor)?`<button class="claimbtn" onclick="approveClaim('${t.id}','${b.by}')">APPROVE</button>`:''}<div class="badge">$${t.bounty}</div></div>`;
+        bHtml+=`<div class="task bounty" style="border-style:dashed"><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">⏳ ${actorName(b.by)} awaiting parent approval</div></div>${isAdult(actor)?`<button class="claimbtn" onclick="approveClaim('${t.id}','${b.by}')">APPROVE</button>`:''}<div class="badge">$${t.bounty}</div></div>`;
       }else if(b.s==='claimed'){
         const mine=b.by===actor;
-        html+=`<div class="task bounty" style="border-style:dashed"><div class="chk" ${mine?`onclick="completeBounty('${t.id}')"`:''} style="${mine?'':'opacity:.3'}"></div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">${b.standing?actorName(b.by)+"'s standing task":'claimed by '+actorName(b.by)}</div></div><div class="badge">$${t.bounty}</div></div>`;
+        bHtml+=`<div class="task bounty" style="border-style:dashed"><div class="chk" ${mine?`onclick="completeBounty('${t.id}')"`:''} style="${mine?'':'opacity:.3'}"></div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">${b.standing?actorName(b.by)+"'s standing task":'claimed by '+actorName(b.by)}</div></div><div class="badge">$${t.bounty}</div></div>`;
       }else if(b.s==='done'){
         const payable=personalClear(b.by);
-        html+=`<div class="task bounty done"><div class="chk" style="background:var(--ok);border-color:var(--ok)">✓</div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta"><span class="attr">✓ ${actorName(b.by)}</span> · <span class="gold">${payable?'pending parent payout':'payable once '+actorName(b.by)+"'s personal dailies are done"}</span></div></div><div class="badge">$${t.bounty}</div></div>`;
+        bHtml+=`<div class="task bounty done"><div class="chk" style="background:var(--ok);border-color:var(--ok)">✓</div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta"><span class="attr">✓ ${actorName(b.by)}</span> · <span class="gold">${payable?'pending parent payout':'payable once '+actorName(b.by)+"'s personal dailies are done"}</span></div></div><div class="badge">$${t.bounty}</div></div>`;
       }
     });
+    section('extras','💰 EXTRAS — EARN',[],bHtml,openBounties.length?openBounties.length+' open · $'+openSum:'✓');
   }
   v.innerHTML=html;
 }
