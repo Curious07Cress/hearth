@@ -598,7 +598,7 @@ function renderReport(v){
   v.innerHTML=html;
 }
 // ---- Tell Bartleby (conversational logging) ----
-let mediaRecorder=null,recChunks=[],pendingProposal=null;
+let mediaRecorder=null,recChunks=[],pendingProposal=null,convoHistory=[];
 function openConverse(){
   if(!actor){openPicker();return}
   el('converseModal').classList.add('show');
@@ -646,7 +646,7 @@ async function runConverse(payload){
   showTyping();
   try{
     const r=await fetch('/api/converse',{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({actor,house,...payload})});
+      body:JSON.stringify({actor,house,history:convoHistory,...payload})});
     const data=await r.json();
     hideTyping();
     if(!r.ok||data.error){appendBubble('err','Bartleby is at a loss: '+(data.error||'unknown error'));return}
@@ -654,6 +654,9 @@ async function runConverse(payload){
       const log=el('chatlog');const rows=log.querySelectorAll('.bubble.user');
       if(rows.length)rows[rows.length-1].textContent=data.transcript;
     }
+    convoHistory.push({role:'user',text:data.transcript||payload.text||''});
+    convoHistory.push({role:'assistant',text:data.reply});
+    if(convoHistory.length>20)convoHistory=convoHistory.slice(-20);
     appendBubble('bart',data.reply);
     if(data.proposal)renderProposal(data.proposal);
   }catch(e){hideTyping();appendBubble('err','Could not reach the house. Check your connection.')}
@@ -683,6 +686,7 @@ async function confirmProposal(btn){
     evs.push({actor,type:'confirmation',mission:'house',msg:'confirmed via Tell Bartleby: '+p.summary});
     await post(evs);
     appendBubble('bart','Recorded. Thank you.');
+    convoHistory.push({role:'user',text:'(confirmed the proposal)'},{role:'assistant',text:'Recorded. Thank you.'});
   }else if(p.kind==='bounty'){
     const b=p.bounty;
     const nb={id:'bounty-'+b.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
@@ -703,6 +707,7 @@ async function rejectProposal(btn){
   btn.closest('.proposal').querySelectorAll('button').forEach(b=>b.disabled=true);
   await post({actor,type:'rejection',mission:'house',msg:'discarded proposal: '+(pendingProposal?pendingProposal.summary:'')});
   appendBubble('bart','Discarded. As you wish.');
+  convoHistory.push({role:'user',text:'(discarded the proposal)'},{role:'assistant',text:'Discarded. As you wish.'});
   pendingProposal=null;
 }
 paint();
