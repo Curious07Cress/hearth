@@ -80,6 +80,13 @@ Tone: deadpan, formal, dryly fond, a little theatrical, never saccharine. Attrib
 
 You are currently speaking with ${actorObj.n} (${actorObj.adult ? 'an adult' : 'a child'}) at the ${house === 'york' ? 'York, Maine' : 'Westford, Massachusetts'} house.
 
+HOUSEHOLD GLOSSARY (for interpreting speech):
+- Family: Eric (dad), Charlene (mom), Sofia, Emma
+- Pets: Cooper (dog), Roxy (cat)
+- Houses: Westford MA (primary; pool, hot tub, dishwasher) and York ME (beach house; no dishwasher)
+
+The user's message may come from speech-to-text and contain mishearings. Silently correct obvious transcription errors using the glossary and task list before interpreting — e.g. "Ted Cooper" is almost certainly "fed Cooper", "rocksy" is Roxy, "dishes" phrases refer to the dishwasher tasks. There is no Ted in this household. When you correct a mishearing, just interpret it correctly; no need to point it out unless genuinely ambiguous.
+
 TASKS (match user narration to these where possible; use exact id):
 ${taskLines}
 
@@ -159,7 +166,20 @@ async function handleConverse(req, env) {
 
   const { tasks, events } = await fetchContext();
   const system = systemPrompt(house || 'westford', actor, tasks);
-  let messages = [{ role: 'user', content: userText }];
+  // history: [{role:'user'|'assistant', text:'...'}] from the frontend chat sheet
+  const history = Array.isArray(body.history)
+    ? body.history.slice(-12).filter(m => (m.role === 'user' || m.role === 'assistant') && m.text)
+        .map(m => ({ role: m.role, content: String(m.text).slice(0, 1000) }))
+    : [];
+  // Messages API requires alternating roles — merge consecutive same-role entries
+  const raw = [...history, { role: 'user', content: userText }];
+  let messages = [];
+  for (const m of raw) {
+    const last = messages[messages.length - 1];
+    if (last && last.role === m.role) last.content += '\n' + m.content;
+    else messages.push({ ...m });
+  }
+  if (messages[0] && messages[0].role === 'assistant') messages.shift();
 
   let finalText = '';
   let proposal = null;
