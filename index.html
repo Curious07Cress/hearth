@@ -266,6 +266,16 @@ async function bump(id){
                 {actor:'bartleby',type:'agent_msg',mission:t.mission,msg:line}]);}
   else await post({actor,task_id:id,type:'count',mission:t.mission,qty:1,msg:`logged "${t.name}" (×${n} today)`});
 }
+async function plusOne(id){
+  const t=tasks.find(x=>x.id===id);
+  await post({actor,task_id:id,type:'complete',mission:t.mission,msg:`also did "${t.name}"`});
+}
+async function addNote(id){
+  const t=tasks.find(x=>x.id===id);
+  const text=prompt('Add a note (e.g. "downstairs only"):');
+  if(!text)return;
+  await post({actor,task_id:id,type:'note',mission:t.mission,msg:text});
+}
 async function nudge(id){
   const t=tasks.find(x=>x.id===id);const line=pick(WREN.blocked);
   toast('wren',line);
@@ -321,7 +331,7 @@ function periodRange(){
   const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
 }
 const BOUNTY_IDS=()=>new Set(tasks.filter(t=>t.bounty).map(t=>t.id));
-function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.type!=='admin'&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
+function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.type!=='admin'&&e.type!=='note'&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
 function tally(aid,from,to){
   const ev=houseEvents(from,to).filter(e=>e.actor===aid);
   const comp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
@@ -347,7 +357,7 @@ function render(){
   if(!tasks.length){v.innerHTML='<div class="empty">'+(syncOK?'Loading the ledger…':'Cannot reach the ledger. Check connection.')+'</div>';return}
   if(tab==='ledger'){
     v.innerHTML=`<div class="section-label" style="margin-top:16px">SHARED EVENT STREAM — ALL DEVICES</div><div class="ledger">`+
-      (events.length?events.slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.msg||e.type}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
+      (events.length?events.slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.type==='note'?'📝 '+e.msg:(e.msg||e.type)}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
     return;
   }
   if(tab==='report'){renderReport(v);return}
@@ -363,12 +373,23 @@ function render(){
       return `<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div>${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}')">+</button></div></div>`;
     }
     const done=doneState(t);
-    const attrTime=done?((t.cadence||'daily')==='daily'?tmOnly(done.t):dOnly(done.t)+' '+tmOnly(done.t)):null;
     const mine=!t.assigned_to||t.assigned_to===actor;
+    let attr='';
+    if(done){
+      const ws=windowStart(t.cadence||'daily');
+      let comps=events.filter(e=>e.task_id===t.id&&e.type==='complete'&&e.t>=ws);
+      if(t.category==='PERSONAL')comps=comps.filter(e=>e.actor===actor);
+      const fmtT=e=>((t.cadence||'daily')==='daily'?tmOnly(e.t):dOnly(e.t)+' '+tmOnly(e.t));
+      attr='✓ '+comps.slice().reverse().map(e=>actorName(e.actor)+' '+fmtT(e)).join(' · ');
+      const note=events.find(e=>e.task_id===t.id&&e.type==='note'&&e.t>=ws);
+      if(note)attr+=`<br>📝 ${note.msg} <span style="opacity:.7">— ${actorName(note.actor)}</span>`;
+    }
     return `<div class="task ${done?'done':''}">
       <div class="chk" ${mine?`onclick="toggle('${t.id}')"`:'style="opacity:.3"'}>${done?'✓':''}</div>
       <div style="flex:1"><div class="tname">${t.name}</div>
-      <div class="tmeta">${done?`<span class="attr">✓ ${actorName(done.actor)}, ${attrTime}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
+      <div class="tmeta">${done?`<span class="attr">${attr}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
+      ${done?`<button class="claimbtn" style="color:var(--dim);border-color:var(--line)" onclick="addNote('${t.id}')">✎</button>`:''}
+      ${done&&t.shared?`<button class="claimbtn" style="color:var(--accent);border-color:var(--accent)" onclick="plusOne('${t.id}')">+1</button>`:''}
       ${t.blocked_on&&!done&&tab==='webapps'?`<button class="actor" style="border-color:var(--danger);color:var(--danger)" onclick="nudge('${t.id}')">WREN?</button>`:''}
     </div>`;
   }
