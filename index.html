@@ -111,6 +111,36 @@ body.york .task.bounty{background:#fbf7e8}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:440px;width:calc(100% - 32px);background:var(--card);border:1px solid var(--accent2);border-left:4px solid var(--accent2);border-radius:14px;padding:12px 16px;font-size:13px;line-height:1.5;z-index:99;box-shadow:0 6px 24px rgba(0,0,0,.12);opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
 .toast .tw{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;margin-bottom:4px;color:var(--accent2);font-weight:600}
+.fab{position:fixed;bottom:22px;right:calc(50% - 240px + 18px);width:56px;height:56px;border-radius:50%;background:var(--accent2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18);z-index:150}
+@media (max-width:520px){.fab{right:18px}}
+.converse{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:300;display:none;align-items:flex-end;justify-content:center}
+.converse.show{display:flex}
+.converse-sheet{width:100%;max-width:480px;background:var(--bg);border-radius:22px 22px 0 0;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(0,0,0,.2)}
+.converse-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.converse-head .ct{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--accent2);font-weight:600}
+.converse-head .cx{color:var(--dim);font-size:20px;cursor:pointer;padding:0 4px}
+.chatlog{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px;min-height:180px}
+.bubble{max-width:85%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5}
+.bubble.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.bubble.bart{align-self:flex-start;background:var(--card2);color:var(--text);border-bottom-left-radius:4px;font-style:italic}
+.bubble.err{align-self:center;background:#fde;color:var(--danger);font-style:normal;font-size:12px}
+.typing{align-self:flex-start;display:flex;gap:4px;padding:10px 14px}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--dim);animation:tb 1s infinite ease-in-out}
+.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+@keyframes tb{0%,60%,100%{opacity:.3}30%{opacity:1}}
+.proposal{align-self:stretch;background:var(--card);border:1.5px solid var(--accent2);border-radius:14px;padding:12px 14px;font-size:13px}
+.proposal .pl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--accent2);margin-bottom:6px;font-weight:600}
+.proposal ul{margin:4px 0 10px 18px}
+.proposal .prow{display:flex;gap:8px;margin-top:6px}
+.proposal .prow button{flex:1;padding:9px 0;border-radius:10px;border:none;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;font-weight:600;cursor:pointer}
+.proposal .pconfirm{background:var(--ok);color:#fff}
+.proposal .pcancel{background:var(--card2);color:var(--dim);border:1px solid var(--line) !important}
+.converse-inputrow{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);align-items:center}
+.converse-inputrow input{flex:1;font-family:'IBM Plex Sans',sans-serif;font-size:14px;padding:11px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--text);outline:none}
+.mic{width:42px;height:42px;min-width:42px;border-radius:50%;border:none;background:var(--card2);color:var(--accent2);font-size:18px;cursor:pointer}
+.mic.rec{background:var(--danger);color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(217,95,75,.4)}50%{box-shadow:0 0 0 8px rgba(217,95,75,0)}}
+.sendbtn{width:42px;height:42px;min-width:42px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:16px;cursor:pointer}
 </style>
 </head>
 <body class="westford">
@@ -120,6 +150,18 @@ body.york .task.bounty{background:#fbf7e8}
 <div class="tabs" id="tabBar"></div>
 <div id="view"></div>
 <div class="toast" id="toast"><div class="tw" id="toastWho"></div><div id="toastMsg"></div></div>
+<div class="fab" id="fab" onclick="openConverse()">🎙️</div>
+<div class="converse" id="converseModal">
+  <div class="converse-sheet">
+    <div class="converse-head"><span class="ct">TELL BARTLEBY</span><span class="cx" onclick="closeConverse()">✕</span></div>
+    <div class="chatlog" id="chatlog"></div>
+    <div class="converse-inputrow">
+      <button class="mic" id="micBtn" onclick="toggleRec()">🎤</button>
+      <input id="converseInput" placeholder="Or type what you did…" onkeydown="if(event.key==='Enter')sendConverseText()">
+      <button class="sendbtn" onclick="sendConverseText()">➤</button>
+    </div>
+  </div>
+</div>
 <script>
 const SB='https://wxifknodqieeuegsglnq.supabase.co/rest/v1';
 const KEY='sb_publishable_y2CtDezvstqPQfVqW2ORHw_mY1FoLNs';
@@ -331,7 +373,8 @@ function periodRange(){
   const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
 }
 const BOUNTY_IDS=()=>new Set(tasks.filter(t=>t.bounty).map(t=>t.id));
-function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.type!=='admin'&&e.type!=='note'&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
+const CONVO_TYPES=['utterance','proposal','confirmation','rejection'];
+function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.type!=='admin'&&e.type!=='note'&&!CONVO_TYPES.includes(e.type)&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
 function tally(aid,from,to){
   const ev=houseEvents(from,to).filter(e=>e.actor===aid);
   const comp=ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length;
@@ -357,7 +400,7 @@ function render(){
   if(!tasks.length){v.innerHTML='<div class="empty">'+(syncOK?'Loading the ledger…':'Cannot reach the ledger. Check connection.')+'</div>';return}
   if(tab==='ledger'){
     v.innerHTML=`<div class="section-label" style="margin-top:16px">SHARED EVENT STREAM — ALL DEVICES</div><div class="ledger">`+
-      (events.length?events.slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.type==='note'?'📝 '+e.msg:(e.msg||e.type)}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
+      (events.length?events.slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.type==='note'?'📝 '+e.msg:CONVO_TYPES.includes(e.type)?'💬 '+e.msg:(e.msg||e.type)}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
     return;
   }
   if(tab==='report'){renderReport(v);return}
@@ -553,6 +596,114 @@ function renderReport(v){
   }
   html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
   v.innerHTML=html;
+}
+// ---- Tell Bartleby (conversational logging) ----
+let mediaRecorder=null,recChunks=[],pendingProposal=null;
+function openConverse(){
+  if(!actor){openPicker();return}
+  el('converseModal').classList.add('show');
+  const log=el('chatlog');
+  if(!log.dataset.inited){
+    log.innerHTML='<div class="bubble bart">Speak, and I shall listen. Tell me what has been done about the house.</div>';
+    log.dataset.inited='1';
+  }
+}
+function closeConverse(){el('converseModal').classList.remove('show');if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop()}
+function appendBubble(cls,text){const log=el('chatlog');const d=document.createElement('div');d.className='bubble '+cls;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
+function showTyping(){const log=el('chatlog');const d=document.createElement('div');d.className='typing';d.id='typingRow';d.innerHTML='<span></span><span></span><span></span>';log.appendChild(d);log.scrollTop=log.scrollHeight}
+function hideTyping(){const t=el('typingRow');if(t)t.remove()}
+async function sendConverseText(){
+  const inp=el('converseInput');const text=inp.value.trim();
+  if(!text)return;
+  inp.value='';
+  appendBubble('user',text);
+  await runConverse({text});
+}
+async function toggleRec(){
+  const btn=el('micBtn');
+  if(mediaRecorder&&mediaRecorder.state==='recording'){mediaRecorder.stop();return}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const mime=MediaRecorder.isTypeSupported('audio/mp4')?'audio/mp4':(MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'');
+    mediaRecorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+    recChunks=[];
+    mediaRecorder.ondataavailable=e=>{if(e.data.size)recChunks.push(e.data)};
+    mediaRecorder.onstop=async()=>{
+      btn.classList.remove('rec');
+      stream.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(recChunks,{type:mediaRecorder.mimeType||'audio/webm'});
+      if(blob.size<500){return}
+      const b64=await blobToBase64(blob);
+      appendBubble('user','🎤 (voice message)');
+      await runConverse({audioBase64:b64,audioMime:blob.type});
+    };
+    mediaRecorder.start();
+    btn.classList.add('rec');
+  }catch(e){toast('bartleby','Microphone access denied or unavailable. You may type instead.')}
+}
+function blobToBase64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)})}
+async function runConverse(payload){
+  showTyping();
+  try{
+    const r=await fetch('/api/converse',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({actor,house,...payload})});
+    const data=await r.json();
+    hideTyping();
+    if(!r.ok||data.error){appendBubble('err','Bartleby is at a loss: '+(data.error||'unknown error'));return}
+    if(payload.audioBase64&&data.transcript){
+      const log=el('chatlog');const rows=log.querySelectorAll('.bubble.user');
+      if(rows.length)rows[rows.length-1].textContent=data.transcript;
+    }
+    appendBubble('bart',data.reply);
+    if(data.proposal)renderProposal(data.proposal);
+  }catch(e){hideTyping();appendBubble('err','Could not reach the house. Check your connection.')}
+}
+function renderProposal(p){
+  pendingProposal=p;
+  const log=el('chatlog');
+  const box=document.createElement('div');box.className='proposal';
+  if(p.kind==='events'){
+    box.innerHTML=`<div class="pl">PROPOSED LEDGER ENTRIES</div><ul>${p.events.map(e=>`<li>${e.msg}${e.qty?' ×'+e.qty:''}</li>`).join('')}</ul>
+      <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">CONFIRM</button></div>`;
+  }else if(p.kind==='bounty'){
+    const b=p.bounty;
+    box.innerHTML=`<div class="pl">PROPOSED BOUNTY</div><ul><li>"${b.name}" — $${b.amount}${b.assigned_to?' · '+actorName(b.assigned_to):' · open'}${b.requires_training?' · needs approval':''}</li></ul>
+      <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">POST IT</button></div>`;
+  }
+  log.appendChild(box);log.scrollTop=log.scrollHeight;
+}
+async function confirmProposal(btn){
+  const p=pendingProposal;if(!p)return;
+  btn.closest('.proposal').querySelectorAll('button').forEach(b=>b.disabled=true);
+  if(p.kind==='events'){
+    const evs=p.events.map(e=>{
+      const t=e.task_id?tasks.find(x=>x.id===e.task_id):null;
+      return{actor,task_id:e.task_id||null,type:e.type,qty:e.qty||null,mission:t?t.mission:'house',msg:e.msg};
+    });
+    evs.push({actor,type:'confirmation',mission:'house',msg:'confirmed via Tell Bartleby: '+p.summary});
+    await post(evs);
+    appendBubble('bart','Recorded. Thank you.');
+  }else if(p.kind==='bounty'){
+    const b=p.bounty;
+    const nb={id:'bounty-'+b.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
+      mission:'house',name:b.name,category:'EXTRAS',shared:false,countable:false,
+      house:b.house||'both',cadence:b.cadence||'once',audience:'all',sort:250,
+      bounty:b.amount,assigned_to:b.assigned_to||null,requires_training:!!b.requires_training};
+    try{
+      const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(nb)});
+      if(!r.ok)throw new Error(await r.text());
+      await post([{actor,type:'admin',mission:'house',msg:`admin: posted bounty "${b.name}" ($${b.amount}) via Tell Bartleby`},
+                  {actor,type:'confirmation',mission:'house',msg:'confirmed via Tell Bartleby: '+p.summary}]);
+      appendBubble('bart','Posted. I shall inform the household.');
+    }catch(e){appendBubble('err','Posting failed — '+e.message)}
+  }
+  pendingProposal=null;
+}
+async function rejectProposal(btn){
+  btn.closest('.proposal').querySelectorAll('button').forEach(b=>b.disabled=true);
+  await post({actor,type:'rejection',mission:'house',msg:'discarded proposal: '+(pendingProposal?pendingProposal.summary:'')});
+  appendBubble('bart','Discarded. As you wish.');
+  pendingProposal=null;
 }
 paint();
 fetchAll();
