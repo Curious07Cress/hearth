@@ -15,7 +15,7 @@ const ACTORS = [
 const TOOLS = [
   {
     name: 'propose_events',
-    description: "Propose one or more ledger events to record, based on what the family member said (e.g. 'fed Cooper and Roxy, dishes are running, tidied the porch' becomes three events). Match each action to an existing task_id from the TASKS list whenever a clear match exists. If an action doesn't match any known task, propose a 'note' event with task_id null describing it. This does NOT write to the ledger — a human must confirm.",
+    description: "Propose one or more ledger events to record, based on what the family member said (e.g. 'fed Cooper and Roxy, dishes are running, tidied the porch' becomes three events). Matching priority: (1) match to an existing task_id from the TASKS list whenever a reasonable match exists; (2) if no match but the action sounds like real recurring or loggable housework, propose creating a new task via the new_task field; (3) if you genuinely can't tell what they mean, do NOT call this tool — ask a clarifying question in your reply instead. This does NOT write to the ledger — a human must confirm.",
     input_schema: {
       type: 'object',
       properties: {
@@ -24,7 +24,19 @@ const TOOLS = [
           items: {
             type: 'object',
             properties: {
-              task_id: { type: ['string', 'null'], description: 'Existing task id, or null for a freeform note/count with no matching task.' },
+              task_id: { type: ['string', 'null'], description: 'Existing task id. Null only when proposing a new_task or a freeform note.' },
+              new_task: {
+                type: 'object',
+                description: 'Propose creating this task because no existing task matches. The event will be logged against it once created.',
+                properties: {
+                  name: { type: 'string' },
+                  category: { type: 'string', description: 'One of the existing categories: PETS, KITCHEN, PERSONAL, COMMON, LAUNDRY, BATHROOMS, HOUSE, POOL & HOT TUB, CARS, MAINTENANCE.' },
+                  cadence: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'quarterly', 'once'] },
+                  countable: { type: 'boolean' },
+                  shared: { type: 'boolean', description: 'True if anyone in the house can do it (most chores), false if personal.' },
+                },
+                required: ['name', 'category', 'cadence'],
+              },
               type: { type: 'string', enum: ['complete', 'count', 'note'] },
               qty: { type: 'number', description: 'Only for type=count, how many times.' },
               msg: { type: 'string', description: 'Short human-readable description of this event.' },
@@ -91,8 +103,9 @@ TASKS (match user narration to these where possible; use exact id):
 ${taskLines}
 
 Rules:
-- When the person narrates chores they did, call propose_events with one event per distinct action. Prefer type "complete" for a matched task, "count" for tasks marked countable (include qty), "note" only when nothing matches.
-- Never invent a task_id that isn't in the TASKS list above — use null instead and describe it in msg.
+- When the person narrates chores they did, call propose_events with one event per distinct action. Matching hierarchy, strictly in order: (1) map to an existing task_id — be generous with fuzzy matches ("did the dishes" = the dishwasher task); (2) no match but it's clearly real housework → include a new_task proposal so the household gains a task; (3) genuinely ambiguous → skip the tool and ask ONE short clarifying question instead.
+- Prefer type "complete" for a matched task, "count" for tasks marked countable (include qty), "note" only for one-off observations that shouldn't become tasks.
+- Never invent a task_id that isn't in the TASKS list above.
 - Only call draft_bounty if the speaker is dad and clearly wants to create new paid work.
 - Only call query_ledger if you genuinely need to check for a duplicate or recent history before proposing.
 - Always also produce a short spoken text reply in Bartleby's voice alongside any tool call — this is what gets read aloud.
