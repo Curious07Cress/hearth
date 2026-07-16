@@ -613,12 +613,17 @@ async function speak(text){
   if(!voiceOn||!text)return;
   try{
     const r=await fetch('/api/speak',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text})});
-    if(!r.ok)return; // silent fail — text is already on screen
+    if(!r.ok){
+      let msg='TTS failed ('+r.status+')';
+      try{const d=await r.json();if(d.error)msg=d.error}catch(e){}
+      appendBubble('err','🔇 '+msg);
+      return;
+    }
     const blob=await r.blob();
     if(!bartAudio)bartAudio=new Audio();
     bartAudio.src=URL.createObjectURL(blob);
-    bartAudio.play().catch(()=>{});
-  }catch(e){}
+    bartAudio.play().catch(e=>{appendBubble('err','🔇 Playback blocked by browser — tap the ▶ on the message instead.')});
+  }catch(e){appendBubble('err','🔇 TTS request failed: '+e.message)}
 }
 // ---- Tell Bartleby (conversational logging) ----
 let mediaRecorder=null,recChunks=[],pendingProposal=null,convoHistory=[];
@@ -633,7 +638,9 @@ function openConverse(){
   }
 }
 function closeConverse(){el('converseModal').classList.remove('show');if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop()}
-function appendBubble(cls,text){const log=el('chatlog');const d=document.createElement('div');d.className='bubble '+cls;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
+function appendBubble(cls,text){const log=el('chatlog');const d=document.createElement('div');d.className='bubble '+cls;d.textContent=text;
+  if(cls==='bart'){const b=document.createElement('span');b.textContent=' ▶';b.style.cssText='cursor:pointer;opacity:.5;font-style:normal;margin-left:6px';b.onclick=()=>{unlockAudio();speak(text)};d.appendChild(b)}
+  log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
 function showTyping(){const log=el('chatlog');const d=document.createElement('div');d.className='typing';d.id='typingRow';d.innerHTML='<span></span><span></span><span></span>';log.appendChild(d);log.scrollTop=log.scrollHeight}
 function hideTyping(){const t=el('typingRow');if(t)t.remove()}
 async function sendConverseText(){
