@@ -389,8 +389,9 @@ function render(){
   const perDone=per.length&&per.every(t=>doneState(t));
   const openBounties=bounties.filter(t=>['open','requested','claimed'].includes(bountyState(t).s));
   const openSum=openBounties.reduce((s,t)=>s+Number(t.bounty),0);
+  const payoutsDue=bounties.filter(t=>{const b=bountyState(t);return b.s==='done'&&personalClear(b.by)}).length;
   secDefaults={personal:!perDone,daily:false,weekly:false,periodic:false,
-    extras:!isAdult(actor)&&personalClear(actor)&&openBounties.length>0};
+    extras:isAdult(actor)?payoutsDue>0:(personalClear(actor)&&openBounties.length>0)};
   function remaining(ts){return ts.filter(t=>!t.countable&&!doneState(t)).length}
   function section(key,label,ts,body,countStr){
     const open=secOpen(key);
@@ -420,10 +421,12 @@ function render(){
         bHtml+=`<div class="task bounty" style="border-style:dashed"><div class="chk" ${mine?`onclick="completeBounty('${t.id}')"`:''} style="${mine?'':'opacity:.3'}"></div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta">${b.standing?actorName(b.by)+"'s standing task":'claimed by '+actorName(b.by)}</div></div><div class="badge">$${t.bounty}</div></div>`;
       }else if(b.s==='done'){
         const payable=personalClear(b.by);
-        bHtml+=`<div class="task bounty done"><div class="chk" style="background:var(--ok);border-color:var(--ok)">✓</div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta"><span class="attr">✓ ${actorName(b.by)}</span> · <span class="gold">${payable?'pending parent payout':'payable once '+actorName(b.by)+"'s personal dailies are done"}</span></div></div><div class="badge">$${t.bounty}</div></div>`;
+        bHtml+=`<div class="task bounty done"><div class="chk" style="background:var(--ok);border-color:var(--ok)">✓</div><div style="flex:1"><div class="tname">${t.name}</div><div class="tmeta"><span class="attr">✓ ${actorName(b.by)}</span> · <span class="gold">${payable?'pending parent payout':'payable once '+actorName(b.by)+"'s personal dailies are done"}</span></div></div>${payable&&isAdult(actor)?`<button class="payout" onclick="payBounty('${t.id}')">PAY $${t.bounty}</button>`:`<div class="badge">$${t.bounty}</div>`}</div>`;
       }
     });
-    section('extras','💰 EXTRAS — EARN',[],bHtml,openBounties.length?openBounties.length+' open · $'+openSum:'✓');
+    let exCount=openBounties.length?openBounties.length+' open · $'+openSum:'✓';
+    if(isAdult(actor)&&payoutsDue)exCount=payoutsDue+' TO PAY · '+exCount;
+    section('extras','💰 EXTRAS — EARN',[],bHtml,exCount);
   }
   v.innerHTML=html;
 }
@@ -507,7 +510,7 @@ function renderReport(v){
     });
     html+=`</table>`;
     // allowance: 6-of-7 days with all personal dailies done
-    const ALLOWANCE=10;
+    const ALLOWANCE=40;
     html+=`<div class="section-label">WEEKLY ALLOWANCE — $${ALLOWANCE} · PERSONAL DAILIES 6 OF 7 DAYS</div><table class="board"><tr><th>KID</th><th style="text-align:right">DAYS KEPT</th><th style="text-align:right">STATUS</th><th></th></tr>`;
     const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
     kids.forEach(k=>{
@@ -521,6 +524,11 @@ function renderReport(v){
       html+=`<tr><td>${k.n}</td><td class="num">${kept}/7</td><td class="num">${status}</td><td style="text-align:right">${btn}</td></tr>`;
     });
     html+=`</table><div style="font-size:11px;color:var(--dim);margin:4px 18px;font-style:italic">Allowance is the salary; bounties are gig work. Duties are witnessed above — the two never mix.</div>`;
+    const paidEvents=events.filter(e=>e.type==='payout'||e.type==='allowance').slice(0,20);
+    if(paidEvents.length){
+      html+=`<div class="section-label">PAID HISTORY</div><div class="ledger">`+
+        paidEvents.map(e=>`<div class="evt"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.msg}<br><span class="time">${fmt(e.t)}</span></div>`).join('')+`</div>`;
+    }
   }
   html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
   v.innerHTML=html;
