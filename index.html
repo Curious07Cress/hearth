@@ -153,7 +153,7 @@ body.york .task.bounty{background:#fbf7e8}
 <div class="fab" id="fab" onclick="openConverse()">🎙️</div>
 <div class="converse" id="converseModal">
   <div class="converse-sheet">
-    <div class="converse-head"><span class="ct">TELL BARTLEBY</span><span class="cx" onclick="closeConverse()">✕</span></div>
+    <div class="converse-head"><span class="ct">TELL BARTLEBY</span><span style="display:flex;gap:14px;align-items:center"><span class="cx" id="voiceToggle" onclick="toggleVoice()" style="font-size:16px">🔊</span><span class="cx" onclick="closeConverse()">✕</span></span></div>
     <div class="chatlog" id="chatlog"></div>
     <div class="converse-inputrow">
       <button class="mic" id="micBtn" onclick="toggleRec()">🎤</button>
@@ -597,11 +597,35 @@ function renderReport(v){
   html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
   v.innerHTML=html;
 }
+// ---- Bartleby speaks (Eleven Labs TTS via /api/speak) ----
+let voiceOn=localStorage.getItem('hearth-voice')!=='off';
+let bartAudio=null,audioUnlocked=false;
+function toggleVoice(){voiceOn=!voiceOn;localStorage.setItem('hearth-voice',voiceOn?'on':'off');el('voiceToggle').textContent=voiceOn?'🔊':'🔇';if(!voiceOn&&bartAudio)bartAudio.pause()}
+function unlockAudio(){
+  // iOS requires play() inside a user gesture; unlock once, reuse the element
+  if(audioUnlocked)return;
+  bartAudio=new Audio();
+  bartAudio.src='data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAABAAADQgD///////////////////////////////////////////8AAAA5TEFNRTMuMTAwAc0AAAAAAAAAABSAJAJAQgAAgAAAA0K4Yf1cAAAAAAAAAAAAAAAAAAAA';
+  bartAudio.play().catch(()=>{});
+  audioUnlocked=true;
+}
+async function speak(text){
+  if(!voiceOn||!text)return;
+  try{
+    const r=await fetch('/api/speak',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text})});
+    if(!r.ok)return; // silent fail — text is already on screen
+    const blob=await r.blob();
+    if(!bartAudio)bartAudio=new Audio();
+    bartAudio.src=URL.createObjectURL(blob);
+    bartAudio.play().catch(()=>{});
+  }catch(e){}
+}
 // ---- Tell Bartleby (conversational logging) ----
 let mediaRecorder=null,recChunks=[],pendingProposal=null,convoHistory=[];
 function openConverse(){
   if(!actor){openPicker();return}
   el('converseModal').classList.add('show');
+  el('voiceToggle').textContent=voiceOn?'🔊':'🔇';
   const log=el('chatlog');
   if(!log.dataset.inited){
     log.innerHTML='<div class="bubble bart">Speak, and I shall listen. Tell me what has been done about the house.</div>';
@@ -615,12 +639,14 @@ function hideTyping(){const t=el('typingRow');if(t)t.remove()}
 async function sendConverseText(){
   const inp=el('converseInput');const text=inp.value.trim();
   if(!text)return;
+  unlockAudio();
   inp.value='';
   appendBubble('user',text);
   await runConverse({text});
 }
 async function toggleRec(){
   const btn=el('micBtn');
+  unlockAudio();
   if(mediaRecorder&&mediaRecorder.state==='recording'){mediaRecorder.stop();return}
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
@@ -658,6 +684,7 @@ async function runConverse(payload){
     convoHistory.push({role:'assistant',text:data.reply});
     if(convoHistory.length>20)convoHistory=convoHistory.slice(-20);
     appendBubble('bart',data.reply);
+    speak(data.reply);
     if(data.proposal)renderProposal(data.proposal);
   }catch(e){hideTyping();appendBubble('err','Could not reach the house. Check your connection.')}
 }
@@ -666,7 +693,7 @@ function renderProposal(p){
   const log=el('chatlog');
   const box=document.createElement('div');box.className='proposal';
   if(p.kind==='events'){
-    box.innerHTML=`<div class="pl">PROPOSED LEDGER ENTRIES</div><ul>${p.events.map(e=>`<li>${e.msg}${e.qty?' ×'+e.qty:''}</li>`).join('')}</ul>
+    box.innerHTML=`<div class="pl">PROPOSED LEDGER ENTRIES</div><ul>${p.events.map(e=>`<li>${e.new_task?'➕ new task: "'+e.new_task.name+'" ('+e.new_task.cadence+') — ':''}${e.msg}${e.qty?' ×'+e.qty:''}</li>`).join('')}</ul>
       <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">CONFIRM</button></div>`;
   }else if(p.kind==='bounty'){
     const b=p.bounty;
@@ -679,6 +706,21 @@ async function confirmProposal(btn){
   const p=pendingProposal;if(!p)return;
   btn.closest('.proposal').querySelectorAll('button').forEach(b=>b.disabled=true);
   if(p.kind==='events'){
+    // Create any proposed new tasks first, so events can reference them
+    for(const e of p.events){
+      if(e.new_task&&!e.task_id){
+        const nt=e.new_task;
+        const id='task-'+nt.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000;
+        const row={id,mission:'house',name:nt.name,category:nt.category||'HOUSE',
+          shared:nt.shared!==false,countable:!!nt.countable,house:house,
+          cadence:nt.cadence||'once',audience:'all',sort:200};
+        try{
+          const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(row)});
+          if(!r.ok)throw new Error(await r.text());
+          e.task_id=id;
+        }catch(err){appendBubble('err','Could not create task "'+nt.name+'" — '+String(err.message).slice(0,150))}
+      }
+    }
     const evs=p.events.map(e=>{
       const t=e.task_id?tasks.find(x=>x.id===e.task_id):null;
       return{actor,task_id:e.task_id||null,type:e.type,qty:e.qty||null,mission:t?t.mission:'house',msg:e.msg};
@@ -686,6 +728,7 @@ async function confirmProposal(btn){
     evs.push({actor,type:'confirmation',mission:'house',msg:'confirmed via Tell Bartleby: '+p.summary});
     await post(evs);
     appendBubble('bart','Recorded. Thank you.');
+    speak('Recorded. Thank you.');
     convoHistory.push({role:'user',text:'(confirmed the proposal)'},{role:'assistant',text:'Recorded. Thank you.'});
   }else if(p.kind==='bounty'){
     const b=p.bounty;
