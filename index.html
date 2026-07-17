@@ -111,14 +111,17 @@ body.york .task.bounty{background:#fbf7e8}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:440px;width:calc(100% - 32px);background:var(--card);border:1px solid var(--accent2);border-left:4px solid var(--accent2);border-radius:14px;padding:12px 16px;font-size:13px;line-height:1.5;z-index:99;box-shadow:0 6px 24px rgba(0,0,0,.12);opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
 .toast .tw{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;margin-bottom:4px;color:var(--accent2);font-weight:600}
-.fab{position:fixed;bottom:22px;right:calc(50% - 240px + 18px);width:56px;height:56px;border-radius:50%;background:var(--accent2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18);z-index:150}
-@media (max-width:520px){.fab{right:18px}}
-.converse{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:300;display:none;align-items:flex-end;justify-content:center}
-.converse.show{display:flex}
-.converse-sheet{width:100%;max-width:480px;background:var(--bg);border-radius:22px 22px 0 0;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(0,0,0,.2)}
-.converse-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
-.converse-head .ct{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--accent2);font-weight:600}
-.converse-head .cx{color:var(--dim);font-size:20px;cursor:pointer;padding:0 4px}
+.bartbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--card);border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));z-index:150;cursor:pointer;box-shadow:0 -4px 16px rgba(0,0,0,.06)}
+.bb-status{flex:1;font-size:12px;font-style:italic;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bb-mic{width:38px;height:38px;min-width:38px;border-radius:50%;border:none;background:var(--accent2);color:#fff;font-size:16px;cursor:pointer}
+.hearth-greet{margin:14px 16px 6px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.hearth-greet .hg-line{font-size:16px;line-height:1.55;font-style:italic}
+.hearth-greet .hg-health{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.5px;color:var(--dim);margin-top:10px}
+.chiprow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 16px}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.5px;padding:8px 13px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--accent);cursor:pointer}
+.hearth-chat .chatlog{min-height:100px;max-height:44vh;padding:10px 0}
+.hearth-chat .converse-inputrow{border-top:none;padding:8px 0 calc(14px + env(safe-area-inset-bottom))}
+.hearth-chat{margin:0 16px}
 .chatlog{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px;min-height:180px}
 .bubble{max-width:85%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5}
 .bubble.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
@@ -150,17 +153,9 @@ body.york .task.bounty{background:#fbf7e8}
 <div class="tabs" id="tabBar"></div>
 <div id="view"></div>
 <div class="toast" id="toast"><div class="tw" id="toastWho"></div><div id="toastMsg"></div></div>
-<div class="fab" id="fab" onclick="openConverse()">🎙️</div>
-<div class="converse" id="converseModal">
-  <div class="converse-sheet">
-    <div class="converse-head"><span class="ct">TELL BARTLEBY</span><span style="display:flex;gap:14px;align-items:center"><span class="cx" id="voiceToggle" onclick="toggleVoice()" style="font-size:16px">🔊</span><span class="cx" onclick="closeConverse()">✕</span></span></div>
-    <div class="chatlog" id="chatlog"></div>
-    <div class="converse-inputrow">
-      <button class="mic" id="micBtn" onclick="toggleRec()">🎤</button>
-      <input id="converseInput" placeholder="Or type what you did…" onkeydown="if(event.key==='Enter')sendConverseText()">
-      <button class="sendbtn" onclick="sendConverseText()">➤</button>
-    </div>
-  </div>
+<div class="bartbar" id="bartbar" style="display:none" onclick="goHearth(false)">
+  <span class="bb-status" id="bbStatus">The house is waking…</span>
+  <button class="bb-mic" onclick="event.stopPropagation();goHearth(true)">🎤</button>
 </div>
 <script>
 const SB='https://wxifknodqieeuegsglnq.supabase.co/rest/v1';
@@ -177,7 +172,7 @@ blocked:["THAT TASK NEEDS *YOU*. Ninety seconds of work! NINETY! GO!","I can't d
 const BART={done:["Noted. The house is fractionally more civilized for it.","I shall record this act of diligence in the ledger. Well done.","Splendid. Cooper appears less judgmental already.","Roxy has observed your effort and remains unimpressed. I, however, approve."]};
 let tasks=[],events=[],actor=localStorage.getItem('hearth-actor')||null;
 let house=localStorage.getItem('hearth-house')||'westford';
-let tab=actor==='dad'?'webapps':'house',period='WEEK',dayOffset=0,syncOK=true;
+let tab='hearth',period='WEEK',dayOffset=0,syncOK=true;
 let secOverrides=JSON.parse(localStorage.getItem('hearth-collapse')||'{}');
 function toggleSec(k){const cur=secOpen(k);secOverrides[k]=!cur;localStorage.setItem('hearth-collapse',JSON.stringify(secOverrides));render()}
 let secDefaults={};
@@ -327,7 +322,7 @@ function setActor(id){actor=id;localStorage.setItem('hearth-actor',id);if(tab===
 function openPicker(){el('pickerGrid').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="pcard" onclick="setActor('${a.id}')"><div class="pavatar">${INITIALS[a.id]}</div><div class="pname">${a.n}</div></div>`).join('');el('picker').classList.add('show')}
 function setHouse(h){house=h;localStorage.setItem('hearth-house',h);paint();render()}
 function visibleTabs(){
-  const v=[];if(actor==='dad')v.push(['webapps','WEBAPPS']);
+  const v=[['hearth','⌂']];if(actor==='dad')v.push(['webapps','WEBAPPS']);
   v.push(['house','HOUSEHOLD'],['ledger','LEDGER'],['report','REPORT']);
   if(actor==='dad')v.push(['admin','ADMIN']);
   return v;
@@ -397,6 +392,10 @@ function render(){
   if(!actor){openPicker()}
   el('tabBar').innerHTML=visibleTabs().map(([k,l])=>`<div class="tab ${tab===k?'on':''}" onclick="tab='${k}';render()">${l}</div>`).join('');
   const v=el('view');
+  el('bartbar').style.display=tab==='hearth'?'none':'flex';
+  el('bbStatus').textContent=houseStatus().bar;
+  v.style.paddingBottom=tab==='hearth'?'0':'70px';
+  if(tab==='hearth'){renderHearth(v);return}
   if(!tasks.length){v.innerHTML='<div class="empty">'+(syncOK?'Loading the ledger…':'Cannot reach the ledger. Check connection.')+'</div>';return}
   if(tab==='ledger'){
     v.innerHTML=`<div class="section-label" style="margin-top:16px">SHARED EVENT STREAM — ALL DEVICES</div><div class="ledger">`+
@@ -627,17 +626,61 @@ async function speak(text){
 }
 // ---- Tell Bartleby (conversational logging) ----
 let mediaRecorder=null,recChunks=[],pendingProposal=null,convoHistory=[];
-function openConverse(){
-  if(!actor){openPicker();return}
-  el('converseModal').classList.add('show');
-  el('voiceToggle').textContent=voiceOn?'🔊':'🔇';
-  const log=el('chatlog');
-  if(!log.dataset.inited){
-    log.innerHTML='<div class="bubble bart">Speak, and I shall listen. Tell me what has been done about the house.</div>';
-    log.dataset.inited='1';
-  }
+let chatWrap=null;
+function buildChatWrap(){
+  if(chatWrap)return chatWrap;
+  chatWrap=document.createElement('div');
+  chatWrap.className='hearth-chat';
+  chatWrap.innerHTML=`<div class="chatlog" id="chatlog"><div class="bubble bart">Speak, and I shall listen. Tell me what has been done about the house.</div></div>
+    <div class="converse-inputrow">
+      <button class="mic" id="micBtn" onclick="toggleRec()">🎤</button>
+      <input id="converseInput" placeholder="Tell Bartleby…" onkeydown="if(event.key==='Enter')sendConverseText()">
+      <button class="sendbtn" onclick="sendConverseText()">➤</button>
+      <span class="cx" id="voiceToggle" onclick="toggleVoice()" style="cursor:pointer;font-size:16px;color:var(--dim)">${voiceOn?'🔊':'🔇'}</span>
+    </div>`;
+  return chatWrap;
 }
-function closeConverse(){el('converseModal').classList.remove('show');if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop()}
+function goHearth(startRec){tab='hearth';render();if(startRec)setTimeout(()=>toggleRec(),50)}
+function houseStatus(){
+  if(!tasks.length)return{line:'The house is waking. Give her a moment.',bar:'The house is waking…',health:''};
+  const hv=tasks.filter(t=>t.mission==='house'&&!t.bounty&&(t.house==='both'||t.house===house));
+  const shared=hv.filter(t=>(t.cadence||'daily')==='daily'&&t.category!=='PERSONAL'&&!t.countable);
+  const sharedLeft=shared.filter(t=>!doneState(t)).length;
+  const per=hv.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
+  const perLeft=actor?per.filter(t=>!doneState(t)).length:0;
+  const openB=tasks.filter(t=>t.bounty).filter(t=>bountyState(t).s==='open').length;
+  const health=`${shared.length-sharedLeft}/${shared.length} shared dailies · ${per.length-perLeft}/${per.length} personal · ${openB} bount${openB===1?'y':'ies'} open`;
+  let line,bar;
+  if(sharedLeft===0&&perLeft===0){line='The house is content. All dailies are seen to — she asks nothing further of you today.';bar='The house is content. Nothing is owed.'}
+  else if(perLeft>0&&sharedLeft>0){line=`The house is patient, but watchful. ${perLeft} of your personal dailies await, and ${sharedLeft} shared dut${sharedLeft===1?'y':'ies'} remain${sharedLeft===1?'s':''} unclaimed.`;bar=`${perLeft} personal · ${sharedLeft} shared remaining`}
+  else if(perLeft>0){line=`The shared duties are handled. The house merely raises an eyebrow at your ${perLeft} remaining personal dail${perLeft===1?'y':'ies'}.`;bar=`${perLeft} personal dail${perLeft===1?'y':'ies'} remain`}
+  else{line=`Your own affairs are in order — commendable. ${sharedLeft} shared dut${sharedLeft===1?'y':'ies'} still seek${sharedLeft===1?'s':''} a volunteer.`;bar=`${sharedLeft} shared dut${sharedLeft===1?'y':'ies'} remain`}
+  return{line,bar,health};
+}
+function greetWord(){const h=new Date().getHours();return h<5?'A late hour':h<12?'Good morning':h<17?'Good afternoon':'Good evening'}
+function renderHearth(v){
+  const st=houseStatus();
+  const chips=[{l:"what's left today?",s:"What's left to do today?"},{l:'log my day 🎤',mic:true}];
+  if(actor&&!isAdult(actor))chips.push({l:'💰 my money',s:'How much have I earned this week, and what bounties are open to me?'});
+  if(actor==='dad')chips.push({l:'📯 post a bounty',s:''},{l:'house report',s:'Give me a brief report on the household this week.'});
+  else chips.push({l:'how am I doing?',s:'How am I doing this week?'});
+  v.innerHTML=`<div class="hearth-greet">
+      <div class="hg-line">${greetWord()}, ${actor?actorName(actor):'stranger'}. ${st.line}</div>
+      ${st.health?`<div class="hg-health">${st.health}</div>`:''}
+    </div>
+    <div class="chiprow">${chips.map((c,i)=>`<div class="chip" onclick="chipTap(${i})">${c.l}</div>`).join('')}</div>
+    <div id="chatMount"></div>`;
+  window._chips=chips;
+  el('chatMount').appendChild(buildChatWrap());
+}
+function chipTap(i){
+  const c=window._chips[i];
+  unlockAudio();
+  if(c.mic){toggleRec();return}
+  if(!c.s){el('converseInput').focus();el('converseInput').placeholder='Describe the bounty — task, amount, who…';return}
+  appendBubble('user',c.s);
+  runConverse({text:c.s});
+}
 function appendBubble(cls,text){const log=el('chatlog');const d=document.createElement('div');d.className='bubble '+cls;d.textContent=text;
   if(cls==='bart'){const b=document.createElement('span');b.textContent=' ▶';b.style.cssText='cursor:pointer;opacity:.5;font-style:normal;margin-left:6px';b.onclick=()=>{unlockAudio();speak(text)};d.appendChild(b)}
   log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
