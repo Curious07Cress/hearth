@@ -284,6 +284,13 @@ export default {
       if (url.pathname === '/api/speak' && request.method === 'POST') {
         return await handleSpeak(request, env);
       }
+      if (url.pathname === '/api/transcribe' && request.method === 'POST') {
+        const body = await request.json();
+        if (!body.audioBase64) return jsonResponse({ error: 'missing audio' }, 400);
+        if (!env.ELEVEN_API_KEY) return jsonResponse({ error: 'ELEVEN_API_KEY not configured' }, 500);
+        const text = await transcribe(env, body.audioBase64, body.audioMime || 'audio/webm');
+        return jsonResponse({ text });
+      }
     } catch (e) {
       return jsonResponse({ error: e.message || String(e) }, 500);
     }
