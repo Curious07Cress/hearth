@@ -714,6 +714,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseStre
 async function startRec(opts){
   opts=opts||{};
   if(mediaRecorder&&mediaRecorder.state==='recording')return;
+  if(bartAudio&&!bartAudio.paused)bartAudio.pause(); // a butler stops talking when spoken to
   unlockAudio();
   try{
     const stream=await getWarmStream();
@@ -735,8 +736,16 @@ async function startRec(opts){
       const b64=await blobToBase64(blob);
       if(wasConfirm){handleSpokenConfirm(b64,blob.type);return}
       localStorage.setItem('hearth-mic-coach','1');
-      appendBubble('user','🎤 (voice message)');
-      await runConverse({audioBase64:b64,audioMime:blob.type});
+      const bub=appendBubble('user','🎤 …');
+      let txt='';
+      try{
+        const r=await fetch('/api/transcribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({audioBase64:b64,audioMime:blob.type})});
+        const d=await r.json();
+        if(r.ok)txt=(d.text||'').trim();else bub.textContent='🎤 ('+(d.error||'transcription failed')+')';
+      }catch(e){bub.textContent='🎤 (could not reach the house)'}
+      if(!txt){if(bub.textContent==='🎤 …')bub.textContent='🎤 (nothing heard)';return}
+      bub.textContent=txt;
+      await runConverse({text:txt});
     };
     mediaRecorder.start();
     const btn=el('micBtn');if(btn)btn.classList.add('rec');
@@ -806,10 +815,6 @@ async function runConverse(payload){
     const data=await r.json();
     hideTyping();
     if(!r.ok||data.error){appendBubble('err','Bartleby is at a loss: '+(data.error||'unknown error'));return}
-    if(payload.audioBase64&&data.transcript){
-      const log=el('chatlog');const rows=log.querySelectorAll('.bubble.user');
-      if(rows.length)rows[rows.length-1].textContent=data.transcript;
-    }
     convoHistory.push({role:'user',text:data.transcript||payload.text||''});
     convoHistory.push({role:'assistant',text:data.reply});
     if(convoHistory.length>20)convoHistory=convoHistory.slice(-20);
