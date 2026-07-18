@@ -123,6 +123,11 @@ body.york .task.bounty{background:#fbf7e8}
 .hearth-chat .chatlog{min-height:34vh;max-height:44vh;padding:10px 0}
 .hearth-chat .converse-inputrow{border-top:none;padding:8px 0 calc(14px + env(safe-area-inset-bottom))}
 .hearth-chat{margin:0 16px}
+.listenbar{display:none;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--danger);border-radius:14px;padding:10px 14px;margin:4px 0}
+.listenbar.show{display:flex}
+.listenbar .lb-mode{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;color:var(--danger);font-weight:600;flex:1}
+.lvl{display:flex;gap:3px;align-items:center;height:22px}
+.lvl span{width:4px;height:4px;border-radius:2px;background:var(--danger);transition:height .08s}
 .chatlog{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px;min-height:180px}
 .bubble{max-width:85%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5}
 .bubble.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
@@ -632,7 +637,9 @@ function buildChatWrap(){
   if(chatWrap)return chatWrap;
   chatWrap=document.createElement('div');
   chatWrap.className='hearth-chat';
-  chatWrap.innerHTML=`<div class="chatlog" id="chatlog"><div class="bubble bart">Speak, and I shall listen. Tell me what has been done about the house.</div></div>
+  const coach=localStorage.getItem('hearth-mic-coach')?'':'<div class="bubble bart">A note on the microphone: hold it down and speak, releasing when finished — or tap it once and simply talk; I shall send when you pause.</div>';
+  chatWrap.innerHTML=`<div class="chatlog" id="chatlog"><div class="bubble bart">Speak, and I shall listen. Tell me what has been done about the house.</div>${coach}</div>
+    <div class="listenbar" id="listenbar"><span class="lb-mode" id="lbMode">LISTENING</span><span class="lvl" id="lvlMeter">${'<span></span>'.repeat(7)}</span></div>
     <div class="converse-inputrow">
       <button class="mic" id="micBtn" style="touch-action:none;-webkit-user-select:none;user-select:none" onpointerdown="micDown(event)" onpointerup="micUp(event)" onpointercancel="micUp(event)">🎤</button>
       <input id="converseInput" placeholder="Tell Bartleby…" onkeydown="if(event.key==='Enter')sendConverseText()">
@@ -718,19 +725,23 @@ async function startRec(opts){
     mediaRecorder.onstop=async()=>{
       stopVAD();
       const btn=el('micBtn');if(btn)btn.classList.remove('rec');
-      setMicHint('');
+      setMicHint('');hideListenBar();
       const wasConfirm=recMeta.confirm,cancelled=recMeta.cancelled;
       const blob=new Blob(recChunks,{type:mediaRecorder.mimeType||'audio/webm'});
-      if(cancelled||blob.size<500||Date.now()-recMeta.start<350)return;
+      if(cancelled||blob.size<500||Date.now()-recMeta.start<350){
+        if(!wasConfirm&&!cancelled&&!window._micTaught){window._micTaught=true;toast('bartleby','Hold the microphone and speak, releasing when done — or tap once, talk, and pause.')}
+        return;
+      }
       const b64=await blobToBase64(blob);
       if(wasConfirm){handleSpokenConfirm(b64,blob.type);return}
+      localStorage.setItem('hearth-mic-coach','1');
       appendBubble('user','🎤 (voice message)');
       await runConverse({audioBase64:b64,audioMime:blob.type});
     };
     mediaRecorder.start();
     const btn=el('micBtn');if(btn)btn.classList.add('rec');
-    setMicHint(opts.confirm?'Listening — say "yes" or "no"…':(opts.hold?'Release to send':'Listening — pause to send'));
-    if(!opts.hold)startVAD(stream,opts.confirm?{maxMs:5000,silenceMs:1200}:{maxMs:30000,silenceMs:1600});
+    showListenBar(opts.confirm?'SAY "YES" OR "NO"':'LISTENING — PAUSE TO SEND');
+    startVAD(stream,opts.confirm?{maxMs:5000,silenceMs:1200}:{maxMs:30000,silenceMs:1600});
   }catch(e){toast('bartleby','Microphone access denied or unavailable. You may type instead.')}
 }
 function stopRec(cancel){
@@ -750,9 +761,10 @@ function startVAD(stream,cfg){
       vad.analyser.getByteTimeDomainData(buf);
       let sum=0;for(let i=0;i<buf.length;i++){const d=(buf[i]-128)/128;sum+=d*d}
       const rms=Math.sqrt(sum/buf.length);
+      drawLevel(rms);
       const now=Date.now();
       if(rms>0.02){spoke=true;lastVoice=now}
-      if((spoke&&now-lastVoice>cfg.silenceMs)||(now-t0>cfg.maxMs)){stopRec(!spoke&&recMeta.confirm);return}
+      if(!recMeta.holdMode&&((spoke&&now-lastVoice>cfg.silenceMs)||(now-t0>cfg.maxMs))){stopRec(!spoke&&recMeta.confirm);return}
       vad.raf=requestAnimationFrame(tick);
     };
     vad.raf=requestAnimationFrame(tick);
@@ -760,6 +772,10 @@ function startVAD(stream,cfg){
 }
 function stopVAD(){if(vad.raf)cancelAnimationFrame(vad.raf);vad.raf=null;vad.analyser=null}
 function setMicHint(t){const i=el('converseInput');if(i)i.placeholder=t||'Tell Bartleby…'}
+function showListenBar(mode){const b=el('listenbar');if(!b)return;b.classList.add('show');el('lbMode').textContent=mode}
+function hideListenBar(){const b=el('listenbar');if(b)b.classList.remove('show')}
+function drawLevel(rms){const m=el('lvlMeter');if(!m)return;const bars=m.children;const v=Math.min(1,rms*12);
+  for(let i=0;i<bars.length;i++){const f=Math.max(.15,v*(0.55+0.45*Math.sin(Date.now()/90+i*1.1)));bars[i].style.height=(4+f*18)+'px'}}
 // Pointer handling: quick tap = tap-mode (auto-stop); press-and-hold = walkie-talkie (release sends)
 let micPressT=0,micHoldTimer=null;
 function micDown(ev){
@@ -767,7 +783,7 @@ function micDown(ev){
   if(mediaRecorder&&mediaRecorder.state==='recording'&&!recMeta.holdMode){stopRec();micPressT=0;return}
   micPressT=Date.now();
   startRec({hold:false});
-  micHoldTimer=setTimeout(()=>{recMeta.holdMode=true;stopVAD();setMicHint('Release to send')},350);
+  micHoldTimer=setTimeout(()=>{recMeta.holdMode=true;showListenBar('RELEASE TO SEND')},350);
 }
 function micUp(ev){
   ev.preventDefault();
