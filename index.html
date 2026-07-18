@@ -634,7 +634,7 @@ function buildChatWrap(){
   chatWrap.className='hearth-chat';
   chatWrap.innerHTML=`<div class="chatlog" id="chatlog"><div class="bubble bart">Speak, and I shall listen. Tell me what has been done about the house.</div></div>
     <div class="converse-inputrow">
-      <button class="mic" id="micBtn" onclick="toggleRec()">🎤</button>
+      <button class="mic" id="micBtn" style="touch-action:none;-webkit-user-select:none;user-select:none" onpointerdown="micDown(event)" onpointerup="micUp(event)" onpointercancel="micUp(event)">🎤</button>
       <input id="converseInput" placeholder="Tell Bartleby…" onkeydown="if(event.key==='Enter')sendConverseText()">
       <button class="sendbtn" onclick="sendConverseText()">➤</button>
     </div>`;
@@ -695,28 +695,91 @@ async function sendConverseText(){
   appendBubble('user',text);
   await runConverse({text});
 }
-async function toggleRec(){
-  const btn=el('micBtn');
+// ---- Adaptive mic engine: hold-to-talk (release sends) OR tap (silence auto-stops) ----
+let micStream=null,vad={ctx:null,analyser:null,raf:null},recMeta={};
+async function getWarmStream(){
+  if(micStream&&micStream.active)return micStream;
+  micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  return micStream;
+}
+function releaseStream(){if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null}}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseStream()});
+async function startRec(opts){
+  opts=opts||{};
+  if(mediaRecorder&&mediaRecorder.state==='recording')return;
   unlockAudio();
-  if(mediaRecorder&&mediaRecorder.state==='recording'){mediaRecorder.stop();return}
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const stream=await getWarmStream();
     const mime=MediaRecorder.isTypeSupported('audio/mp4')?'audio/mp4':(MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'');
     mediaRecorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
     recChunks=[];
+    recMeta={start:Date.now(),confirm:!!opts.confirm,cancelled:false};
     mediaRecorder.ondataavailable=e=>{if(e.data.size)recChunks.push(e.data)};
     mediaRecorder.onstop=async()=>{
-      btn.classList.remove('rec');
-      stream.getTracks().forEach(t=>t.stop());
+      stopVAD();
+      const btn=el('micBtn');if(btn)btn.classList.remove('rec');
+      setMicHint('');
+      const wasConfirm=recMeta.confirm,cancelled=recMeta.cancelled;
       const blob=new Blob(recChunks,{type:mediaRecorder.mimeType||'audio/webm'});
-      if(blob.size<500){return}
+      if(cancelled||blob.size<500||Date.now()-recMeta.start<350)return;
       const b64=await blobToBase64(blob);
+      if(wasConfirm){handleSpokenConfirm(b64,blob.type);return}
       appendBubble('user','🎤 (voice message)');
       await runConverse({audioBase64:b64,audioMime:blob.type});
     };
     mediaRecorder.start();
-    btn.classList.add('rec');
+    const btn=el('micBtn');if(btn)btn.classList.add('rec');
+    setMicHint(opts.confirm?'Listening — say "yes" or "no"…':(opts.hold?'Release to send':'Listening — pause to send'));
+    if(!opts.hold)startVAD(stream,opts.confirm?{maxMs:5000,silenceMs:1200}:{maxMs:30000,silenceMs:1600});
   }catch(e){toast('bartleby','Microphone access denied or unavailable. You may type instead.')}
+}
+function stopRec(cancel){
+  if(mediaRecorder&&mediaRecorder.state==='recording'){if(cancel)recMeta.cancelled=true;mediaRecorder.stop()}
+}
+function startVAD(stream,cfg){
+  try{
+    if(!vad.ctx)vad.ctx=new (window.AudioContext||window.webkitAudioContext)();
+    if(vad.ctx.state==='suspended')vad.ctx.resume();
+    const src=vad.ctx.createMediaStreamSource(stream);
+    vad.analyser=vad.ctx.createAnalyser();vad.analyser.fftSize=1024;
+    src.connect(vad.analyser);
+    const buf=new Uint8Array(vad.analyser.fftSize);
+    const t0=Date.now();let lastVoice=Date.now(),spoke=false;
+    const tick=()=>{
+      if(!mediaRecorder||mediaRecorder.state!=='recording'){stopVAD();return}
+      vad.analyser.getByteTimeDomainData(buf);
+      let sum=0;for(let i=0;i<buf.length;i++){const d=(buf[i]-128)/128;sum+=d*d}
+      const rms=Math.sqrt(sum/buf.length);
+      const now=Date.now();
+      if(rms>0.02){spoke=true;lastVoice=now}
+      if((spoke&&now-lastVoice>cfg.silenceMs)||(now-t0>cfg.maxMs)){stopRec(!spoke&&recMeta.confirm);return}
+      vad.raf=requestAnimationFrame(tick);
+    };
+    vad.raf=requestAnimationFrame(tick);
+  }catch(e){/* VAD unavailable — manual stop still works */}
+}
+function stopVAD(){if(vad.raf)cancelAnimationFrame(vad.raf);vad.raf=null;vad.analyser=null}
+function setMicHint(t){const i=el('converseInput');if(i)i.placeholder=t||'Tell Bartleby…'}
+// Pointer handling: quick tap = tap-mode (auto-stop); press-and-hold = walkie-talkie (release sends)
+let micPressT=0,micHoldTimer=null;
+function micDown(ev){
+  ev.preventDefault();
+  if(mediaRecorder&&mediaRecorder.state==='recording'&&!recMeta.holdMode){stopRec();micPressT=0;return}
+  micPressT=Date.now();
+  startRec({hold:false});
+  micHoldTimer=setTimeout(()=>{recMeta.holdMode=true;stopVAD();setMicHint('Release to send')},350);
+}
+function micUp(ev){
+  ev.preventDefault();
+  clearTimeout(micHoldTimer);
+  if(!micPressT)return;
+  const held=Date.now()-micPressT;micPressT=0;
+  if(held>=350){stopRec()} // walkie-talkie release
+  // quick tap: leave recording running; VAD or second tap ends it
+}
+async function toggleRec(){ // kept for chips/deep-link: tap-mode start
+  if(mediaRecorder&&mediaRecorder.state==='recording'){stopRec();return}
+  startRec({hold:false});
 }
 function blobToBase64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)})}
 async function runConverse(payload){
@@ -739,10 +802,11 @@ async function runConverse(payload){
     if(data.proposal)renderProposal(data.proposal);
   }catch(e){hideTyping();appendBubble('err','Could not reach the house. Check your connection.')}
 }
+let lastPropBox=null;
 function renderProposal(p){
   pendingProposal=p;
   const log=el('chatlog');
-  const box=document.createElement('div');box.className='proposal';
+  const box=document.createElement('div');box.className='proposal';lastPropBox=box;
   if(p.kind==='events'){
     box.innerHTML=`<div class="pl">PROPOSED LEDGER ENTRIES</div><ul>${p.events.map(e=>`<li>${e.new_task?'➕ new task: "'+e.new_task.name+'" ('+e.new_task.cadence+') — ':''}${e.msg}${e.qty?' ×'+e.qty:''}</li>`).join('')}</ul>
       <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">CONFIRM</button></div>`;
@@ -751,7 +815,27 @@ function renderProposal(p){
     box.innerHTML=`<div class="pl">PROPOSED BOUNTY</div><ul><li>"${b.name}" — $${b.amount}${b.assigned_to?' · '+actorName(b.assigned_to):' · open'}${b.requires_training?' · needs approval':''}</li></ul>
       <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">POST IT</button></div>`;
   }
+  const hint=document.createElement('div');
+  hint.style.cssText='font-size:10px;color:var(--dim);font-family:IBM Plex Mono,monospace;letter-spacing:.5px;margin-top:7px;text-align:center';
+  hint.textContent='SAY "YES" OR "NO" — OR TAP';
+  box.appendChild(hint);
   log.appendChild(box);log.scrollTop=log.scrollHeight;
+  if(micStream&&micStream.active)setTimeout(()=>{if(pendingProposal)startRec({confirm:true})},400);
+}
+async function handleSpokenConfirm(b64,mime){
+  if(!pendingProposal||!lastPropBox)return;
+  try{
+    const r=await fetch('/api/transcribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({audioBase64:b64,audioMime:mime})});
+    if(!r.ok)return;
+    const d=await r.json();
+    const t=(d.text||'').toLowerCase();
+    if(/\b(yes|yeah|yep|yup|confirm|confirmed|do it|post it|sure|correct)\b/.test(t)){
+      const btn=lastPropBox.querySelector('.pconfirm');if(btn&&!btn.disabled)confirmProposal(btn);
+    }else if(/\b(no|nope|discard|cancel|never mind|reject|wrong)\b/.test(t)){
+      const btn=lastPropBox.querySelector('.pcancel');if(btn&&!btn.disabled)rejectProposal(btn);
+    }
+    // anything else: leave the card for a tap
+  }catch(e){}
 }
 async function confirmProposal(btn){
   const p=pendingProposal;if(!p)return;
@@ -805,6 +889,10 @@ async function rejectProposal(btn){
   pendingProposal=null;
 }
 paint();
+if(new URLSearchParams(location.search).get('listen')==='1'){
+  history.replaceState(null,'',location.pathname);
+  if(actor){tab='hearth';setTimeout(()=>{render();startRec({hold:false}).catch(()=>{})},300)}
+}
 fetchAll();
 setInterval(fetchAll,30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetchAll()});
