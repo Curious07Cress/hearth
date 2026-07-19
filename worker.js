@@ -1,4 +1,4 @@
-// hearth v2.0 — gateway worker
+// hearth v2.1 — gateway worker
 import html from './index.html';
 
 const SB = 'https://wxifknodqieeuegsglnq.supabase.co/rest/v1';
