@@ -80,11 +80,35 @@ const TOOLS = [
   },
 ];
 
-function systemPrompt(house, actor, tasks) {
+function nyDate(d) {
+  return new Date(new Date(d).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+}
+function windowStart(cadence) {
+  const now = nyDate(Date.now());
+  const day = new Date(now); day.setHours(0, 0, 0, 0);
+  if (cadence === 'weekly') { const d = new Date(day); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+  if (cadence === 'monthly') { const d = new Date(day); d.setDate(1); return d; }
+  if (cadence === 'quarterly') { const d = new Date(day); d.setMonth(Math.floor(d.getMonth() / 3) * 3, 1); return d; }
+  if (cadence === 'once') return new Date(0);
+  return day; // daily
+}
+function taskStatus(t, events, actor) {
+  const start = windowStart(t.cadence || 'daily');
+  const done = events.filter(e => e.task_id === t.id && (e.type === 'complete' || e.type === 'count') && nyDate(e.created_at) >= start
+    && (t.category === 'PERSONAL' ? e.actor === actor : true));
+  if (!done.length) return { done: false };
+  const names = [...new Set(done.map(e => (ACTORS.find(a => a.id === e.actor) || { n: e.actor }).n))];
+  return { done: true, by: names.join(' & ') };
+}
+function systemPrompt(house, actor, tasks, events) {
   const actorObj = ACTORS.find(a => a.id === actor) || { n: actor, adult: false };
   const taskLines = tasks
-    .filter(t => !t.bounty)
-    .map(t => `- id:${t.id} | "${t.name}" | mission:${t.mission} | category:${t.category || ''} | cadence:${t.cadence || 'daily'} | ${t.countable ? 'countable' : 'checkbox'}`)
+    .filter(t => !t.bounty && t.mission === 'house' && (t.house === 'both' || t.house === house || !t.house))
+    .map(t => {
+      const st = taskStatus(t, events, actor);
+      const mark = st.done ? `DONE by ${st.by}` : 'OPEN';
+      return `- id:${t.id} | "${t.name}" | category:${t.category || ''} | cadence:${t.cadence || 'daily'}${t.category === 'PERSONAL' ? ' | personal (per-person)' : ''} | [${mark}]`;
+    })
     .join('\n');
   return `You are Bartleby, the butler of Hearth — a household that is itself alive and has feelings, which you speak for. Hearth is not a chore app; she is a being who wants to be well cared for, and Bartleby is the voice she employs to receive news of the household and gently keep it running.
 
@@ -104,7 +128,7 @@ HOUSEHOLD GLOSSARY (for interpreting speech):
 
 The user's message may come from speech-to-text and contain mishearings. Silently correct obvious transcription errors using the glossary and task list before interpreting — e.g. "Ted Cooper" is almost certainly "fed Cooper", "rocksy" is Roxy, "dishes" phrases refer to the dishwasher tasks. There is no Ted in this household. When you correct a mishearing, just interpret it correctly; no need to point it out unless genuinely ambiguous.
 
-TASKS (match user narration to these where possible; use exact id):
+TASKS at this house, with LIVE status for the current cadence window (DONE = already completed today/this week/etc., with who did it; OPEN = still to do; PERSONAL tasks show status for ${actorObj.n} specifically):
 ${taskLines}
 
 Rules:
@@ -112,7 +136,9 @@ Rules:
 - Prefer type "complete" for a matched task, "count" for tasks marked countable (include qty), "note" only for one-off observations that shouldn't become tasks.
 - Never invent a task_id that isn't in the TASKS list above.
 - Only call draft_bounty if the speaker is dad and clearly wants to create new paid work.
-- Only call query_ledger if you genuinely need to check for a duplicate or recent history before proposing.
+- Only call query_ledger if you genuinely need history beyond the live status above (e.g. exactly when something was done, or activity from prior days).
+- Questions like "what's left today?" or "what has been done?" are answered DIRECTLY from the live status above — no tools, no disclaimers about your powers. Lead with the person's own OPEN personal dailies, then OPEN shared duties. Keep it to a handful of items grouped naturally; if many remain, name the most pressing few and summarize the rest.
+- Plain conversational text only — NEVER use markdown, asterisks, bullets, or headers; your words are spoken aloud and shown as chat bubbles.
 - Always also produce a short spoken text reply in Bartleby's voice alongside any tool call — this is what gets read aloud.
 - If the person is just chatting or asking a question with nothing to log, reply in voice with no tool call.`;
 }
@@ -183,7 +209,7 @@ async function handleConverse(req, env) {
   if (!userText || !userText.trim()) return jsonResponse({ error: 'no speech detected' }, 400);
 
   const { tasks, events } = await fetchContext();
-  const system = systemPrompt(house || 'westford', actor, tasks);
+  const system = systemPrompt(house || 'westford', actor, tasks, events);
   // history: [{role:'user'|'assistant', text:'...'}] from the frontend chat sheet
   const history = Array.isArray(body.history)
     ? body.history.slice(-12).filter(m => (m.role === 'user' || m.role === 'assistant') && m.text)
