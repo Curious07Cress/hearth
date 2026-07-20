@@ -67,6 +67,18 @@ const TOOLS = [
     },
   },
   {
+    name: 'propose_suggestion',
+    description: "Capture a family member's suggestion or idea — for the household, the task list, the app, or how anything works around here. On confirmation it becomes a review item for dad. Use whenever someone offers an idea, complaint-with-a-fix, or 'we should...' — any actor may suggest, including the children.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        suggestion: { type: 'string', description: "The suggestion, faithfully captured in one or two sentences — the suggester's intent, not your rewrite." },
+        summary: { type: 'string', description: "One short sentence, in Bartleby's voice, reading the suggestion back for confirmation." },
+      },
+      required: ['suggestion', 'summary'],
+    },
+  },
+  {
     name: 'query_ledger',
     description: "Check recent ledger history before proposing an event — e.g. to see whether a daily task was already completed today, or what an actor has logged recently. Use this if you're unsure whether an action was already recorded.",
     input_schema: {
@@ -136,6 +148,7 @@ Rules:
 - Prefer type "complete" for a matched task, "count" for tasks marked countable (include qty), "note" only for one-off observations that shouldn't become tasks.
 - Never invent a task_id that isn't in the TASKS list above.
 - Only call draft_bounty if the speaker is dad and clearly wants to create new paid work.
+- Anyone — including the children — may offer suggestions about the household, tasks, or this app. When they do, call propose_suggestion, capturing their idea faithfully. The house values petitions from all residents; receive them graciously (a dry aside is permitted).
 - Only call query_ledger if you genuinely need history beyond the live status above (e.g. exactly when something was done, or activity from prior days).
 - Questions like "what's left today?" or "what has been done?" are answered DIRECTLY from the live status above — no tools, no disclaimers about your powers. Lead with the person's own OPEN personal dailies, then OPEN shared duties. Keep it to a handful of items grouped naturally; if many remain, name the most pressing few and summarize the rest.
 - Plain conversational text only — NEVER use markdown, asterisks, bullets, or headers; your words are spoken aloud and shown as chat bubbles.
@@ -242,6 +255,11 @@ async function handleConverse(req, env) {
     }
     if (toolUse.name === 'draft_bounty') {
       proposal = { kind: 'bounty', bounty: toolUse.input, summary: toolUse.input.summary };
+      if (!finalText) finalText = toolUse.input.summary;
+      break;
+    }
+    if (toolUse.name === 'propose_suggestion') {
+      proposal = { kind: 'suggestion', suggestion: toolUse.input.suggestion, summary: toolUse.input.summary };
       if (!finalText) finalText = toolUse.input.summary;
       break;
     }
