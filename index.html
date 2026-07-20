@@ -418,7 +418,7 @@ function render(){
     if(t.countable){
       const n=countWindow(t);
       const who=events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=windowStart(t.cadence||'daily'))[0];
-      return `<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div>${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}')">+</button></div></div>`;
+      return `<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div>${t.detail?`<div class="tmeta" style="opacity:.75">${t.detail}</div>`:''}${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}')">+</button></div></div>`;
     }
     const done=doneState(t);
     const mine=!t.assigned_to||t.assigned_to===actor;
@@ -434,7 +434,7 @@ function render(){
     }
     return `<div class="task ${done?'done':''}">
       <div class="chk" ${mine?`onclick="toggle('${t.id}')"`:'style="opacity:.3"'}>${done?'✓':''}</div>
-      <div style="flex:1"><div class="tname">${t.name}</div>
+      <div style="flex:1"><div class="tname">${t.name}</div>${t.detail?`<div class="tmeta" style="opacity:.75">${t.detail}</div>`:''}
       <div class="tmeta">${done?`<span class="attr">${attr}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
       ${done?`<button class="claimbtn" style="color:var(--dim);border-color:var(--line)" onclick="addNote('${t.id}')">✎</button>`:''}
       ${done&&t.shared?`<button class="claimbtn" style="color:var(--accent);border-color:var(--accent)" onclick="plusOne('${t.id}')">+1</button>`:''}
