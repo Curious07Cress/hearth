@@ -667,7 +667,7 @@ function houseStatus(){
 function greetWord(){const h=new Date().getHours();return h<5?'A late hour':h<12?'Good morning':h<17?'Good afternoon':'Good evening'}
 function renderHearth(v){
   const st=houseStatus();
-  const chips=[{l:"what's left today?",s:"What's left to do today?"},{l:'log my day 🎤',mic:true}];
+  const chips=[{l:"what's left today?",s:"What's left to do today?"},{l:'log my day 🎤',mic:true},{l:'💡 suggest something',s:'I have a suggestion.'}];
   if(actor&&!isAdult(actor))chips.push({l:'💰 my money',s:'How much have I earned this week, and what bounties are open to me?'});
   if(actor==='dad')chips.push({l:'📯 post a bounty',s:''},{l:'house report',s:'Give me a brief report on the household this week.'});
   else chips.push({l:'how am I doing?',s:'How am I doing this week?'});
