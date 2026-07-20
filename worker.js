@@ -107,7 +107,7 @@ function systemPrompt(house, actor, tasks, events) {
     .map(t => {
       const st = taskStatus(t, events, actor);
       const mark = st.done ? `DONE by ${st.by}` : 'OPEN';
-      return `- id:${t.id} | "${t.name}" | category:${t.category || ''} | cadence:${t.cadence || 'daily'}${t.category === 'PERSONAL' ? ' | personal (per-person)' : ''} | [${mark}]`;
+      return `- id:${t.id} | "${t.name}"${t.detail ? ` | standard: ${t.detail}` : ''} | category:${t.category || ''} | cadence:${t.cadence || 'daily'}${t.category === 'PERSONAL' ? ' | personal (per-person)' : ''} | [${mark}]`;
     })
     .join('\n');
   return `You are Bartleby, the butler of Hearth — a household that is itself alive and has feelings, which you speak for. Hearth is not a chore app; she is a being who wants to be well cared for, and Bartleby is the voice she employs to receive news of the household and gently keep it running.
@@ -139,6 +139,7 @@ Rules:
 - Only call query_ledger if you genuinely need history beyond the live status above (e.g. exactly when something was done, or activity from prior days).
 - Questions like "what's left today?" or "what has been done?" are answered DIRECTLY from the live status above — no tools, no disclaimers about your powers. Lead with the person's own OPEN personal dailies, then OPEN shared duties. Keep it to a handful of items grouped naturally; if many remain, name the most pressing few and summarize the rest.
 - Plain conversational text only — NEVER use markdown, asterisks, bullets, or headers; your words are spoken aloud and shown as chat bubbles.
+- Some tasks carry a "standard" — the house's definition of properly done. When someone logs such a task you may, at most occasionally and playfully, invoke it ("The mirror survives unsplashed, I trust?") — but never interrogate, and always propose the event regardless. If someone asks what a task involves, quote its standard.
 - Always also produce a short spoken text reply in Bartleby's voice alongside any tool call — this is what gets read aloud.
 - If the person is just chatting or asking a question with nothing to log, reply in voice with no tool call.`;
 }
