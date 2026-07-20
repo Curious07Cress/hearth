@@ -831,6 +831,9 @@ function renderProposal(p){
   if(p.kind==='events'){
     box.innerHTML=`<div class="pl">PROPOSED LEDGER ENTRIES</div><ul>${p.events.map(e=>`<li>${e.new_task?'➕ new task: "'+e.new_task.name+'" ('+e.new_task.cadence+') — ':''}${e.msg}${e.qty?' ×'+e.qty:''}</li>`).join('')}</ul>
       <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">CONFIRM</button></div>`;
+  }else if(p.kind==='suggestion'){
+    box.innerHTML=`<div class="pl">SUGGESTION FOR DAD'S REVIEW</div><ul><li>${p.suggestion}</li></ul>
+      <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">SUBMIT</button></div>`;
   }else if(p.kind==='bounty'){
     const b=p.bounty;
     box.innerHTML=`<div class="pl">PROPOSED BOUNTY</div><ul><li>"${b.name}" — $${b.amount}${b.assigned_to?' · '+actorName(b.assigned_to):' · open'}${b.requires_training?' · needs approval':''}</li></ul>
@@ -886,6 +889,9 @@ async function confirmProposal(btn){
     appendBubble('bart','Recorded. Thank you.');
     speak('Recorded. Thank you.');
     convoHistory.push({role:'user',text:'(confirmed the proposal)'},{role:'assistant',text:'Recorded. Thank you.'});
+  }else if(p.kind==='suggestion'){
+    box.innerHTML=`<div class="pl">SUGGESTION FOR DAD'S REVIEW</div><ul><li>${p.suggestion}</li></ul>
+      <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">SUBMIT</button></div>`;
   }else if(p.kind==='bounty'){
     const b=p.bounty;
     const nb={id:'bounty-'+b.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
@@ -899,6 +905,19 @@ async function confirmProposal(btn){
                   {actor,type:'confirmation',mission:'house',msg:'confirmed via Tell Bartleby: '+p.summary}]);
       appendBubble('bart','Posted. I shall inform the household.');
     }catch(e){appendBubble('err','Posting failed — '+e.message)}
+  }
+  else if(p.kind==='suggestion'){
+    const id='suggest-'+Date.now();
+    const row={id,mission:'house',name:`Review: ${p.suggestion} (from ${actorName(actor)})`,category:'SUGGESTIONS',
+      shared:false,countable:false,house:'both',cadence:'once',audience:'adult',sort:290};
+    try{
+      const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(row)});
+      if(!r.ok)throw new Error(await r.text());
+      await post([{actor,type:'note',mission:'house',msg:`suggestion from ${actorName(actor)}: ${p.suggestion}`},
+                  {actor,type:'confirmation',mission:'house',msg:'confirmed via Tell Bartleby: '+p.summary}]);
+      appendBubble('bart','Noted and filed. The house will see it reaches the master of the house.');
+      speak('Noted and filed. The house will see it reaches the master of the house.');
+    }catch(e){appendBubble('err','Filing failed — '+String(e.message).slice(0,150))}
   }
   pendingProposal=null;
 }
