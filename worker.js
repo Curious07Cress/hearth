@@ -187,7 +187,7 @@ async function callClaude(env, system, messages) {
       model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       system,
-      tools: TOOLS,
+      ...(arguments.length > 3 && arguments[3] === false ? {} : { tools: TOOLS }),
       messages,
     }),
   });
@@ -278,6 +278,41 @@ async function handleConverse(req, env) {
   return jsonResponse({ transcript: userText, reply: finalText || '...', proposal });
 }
 
+async function handleDispatch(req, env) {
+  let body; try { body = await req.json(); } catch { return jsonResponse({ error: 'bad json' }, 400); }
+  const { actor, house } = body;
+  if (!env.ANTHROPIC_API_KEY) return jsonResponse({ error: 'ANTHROPIC_API_KEY not configured' }, 500);
+  // Week window: Monday 00:00 NY
+  const wkStart = windowStart('weekly');
+  const [tr, er] = await Promise.all([
+    fetch(SB + '/tasks?select=*', { headers: SBHDRS }),
+    fetch(SB + '/events?select=*&order=created_at.desc&limit=1000', { headers: SBHDRS }),
+  ]);
+  const tasks = tr.ok ? await tr.json() : [];
+  const all = er.ok ? await er.json() : [];
+  const wk = all.filter(e => nyDate(e.created_at) >= wkStart);
+  const humans = ['dad', 'mom', 'k1', 'k2'];
+  const stats = {};
+  for (const id of humans) {
+    const mine = wk.filter(e => e.actor === id);
+    const comps = mine.filter(e => (e.type === 'complete' || e.type === 'count') && e.mission === 'house');
+    const days = [...new Set(comps.map(e => nyDate(e.created_at).toDateString()))].length;
+    const byCat = {};
+    for (const e of comps) { const t = tasks.find(x => x.id === e.task_id); const c = t ? (t.category || 'other') : 'other'; byCat[c] = (byCat[c] || 0) + (e.qty || 1); }
+    stats[(ACTORS.find(a => a.id === id) || { n: id }).n] = { completions: comps.length, activeDays: days, byCategory: byCat };
+  }
+  const payouts = wk.filter(e => e.type === 'payout' || e.type === 'allowance').map(e => `${(ACTORS.find(a => a.id === e.actor) || { n: e.actor }).n}: ${e.msg}`);
+  const notes = wk.filter(e => e.type === 'note').slice(0, 10).map(e => e.msg);
+  const gaps = tasks.filter(t => t.mission === 'house' && !t.bounty && (t.cadence || 'daily') === 'daily' && t.category !== 'PERSONAL' && (t.house === 'both' || t.house === house))
+    .filter(t => !wk.some(e => e.task_id === t.id && (e.type === 'complete' || e.type === 'count'))).map(t => t.name).slice(0, 8);
+  const webapps = actor === 'dad' ? wk.filter(e => e.mission === 'webapps' && (e.type === 'complete' || e.type === 'note')).map(e => e.msg || e.type).slice(0, 12) : null;
+  const data = { weekOf: wkStart.toDateString(), house, stats, payouts, coverageGaps: gaps, recentNotes: notes };
+  const sys = `You are Bartleby, butler of Hearth — a house that is alive and speaks through you. Compose the Sunday Dispatch: the house's weekly address to the family, read aloud at the family check-in. Voice: deadpan, formal, dryly fond, gently sarcastic; the house's feelings woven throughout. Name each family member and what they carried this week — specific numbers welcome. Note earnings paid, praise streak-holders with mock ceremony, and raise one eyebrow (kindly) at coverage gaps. This family enjoys being teased; tease them. Plain text only, no markdown. 150-220 words.${webapps ? ` THEN append a short second section (max 60 words) headed "Wren adds:" — Wren is the short-tempered dev manager of the webapps mission; she reports tersely on the week's webapps activity, mildly annoyed as always.` : ''} End with a one-line benediction from the house.`;
+  const resp = await callClaude(env, sys, [{ role: 'user', content: 'Ledger data for the week:\n' + JSON.stringify(data) + (webapps ? '\nWebapps mission events:\n' + JSON.stringify(webapps) : '') }], false);
+  const text = resp.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  return jsonResponse({ dispatch: text, weekOf: wkStart.toISOString().slice(0, 10) });
+}
+
 async function transcribe(env, audioBase64, mime) {
   const bytes = base64ToBytes(audioBase64);
   const ext = mime.includes('mp4') ? 'm4a' : mime.includes('webm') ? 'webm' : 'wav';
@@ -333,6 +368,9 @@ export default {
       }
       if (url.pathname === '/api/speak' && request.method === 'POST') {
         return await handleSpeak(request, env);
+      }
+      if (url.pathname === '/api/dispatch' && request.method === 'POST') {
+        return await handleDispatch(request, env);
       }
       if (url.pathname === '/api/transcribe' && request.method === 'POST') {
         const body = await request.json();
