@@ -524,8 +524,33 @@ function renderAdmin(v){
   <div class="empty">Every admin action is logged to the ledger.</div>`;
   v.innerHTML=html;
 }
+async function loadDispatch(btn){
+  const body=el('dispatchBody');
+  const wk=(()=>{const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10)})();
+  const cached=localStorage.getItem('hearth-dispatch-'+wk);
+  body.style.display='block';
+  if(cached&&btn.textContent!=='REFRESH'){body.textContent=cached;addDispatchPlay(body,cached);btn.textContent='REFRESH';return}
+  btn.disabled=true;btn.textContent='COMPOSING…';body.textContent='The house is gathering her thoughts…';
+  try{
+    const r=await fetch('/api/dispatch',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({actor,house})});
+    const d=await r.json();
+    if(!r.ok||d.error)throw new Error(d.error||('HTTP '+r.status));
+    localStorage.setItem('hearth-dispatch-'+wk,d.dispatch);
+    body.textContent=d.dispatch;
+    addDispatchPlay(body,d.dispatch);
+  }catch(e){body.textContent='The dispatch could not be composed — '+String(e.message).slice(0,140)}
+  btn.disabled=false;btn.textContent='REFRESH';
+}
+function addDispatchPlay(body,text){
+  const b=document.createElement('div');
+  b.innerHTML='<span style="cursor:pointer;font-style:normal;font-family:IBM Plex Mono,monospace;font-size:10px;letter-spacing:1px;color:var(--accent2)">▶ READ ALOUD</span>';
+  b.style.marginTop='8px';
+  b.onclick=()=>{unlockAudio();speak(text,true)};
+  body.appendChild(b);
+}
 function renderReport(v){
   const[from,to,dayDate]=periodRange();
+  window._dispatchMount=true;
   const humans=ACTORS.filter(a=>a.h).sort((a,b)=>a.n.localeCompare(b.n));
   const ev=houseEvents(from,to);
   const totComp=Math.max(0,ev.filter(e=>e.type==='complete').length-ev.filter(e=>e.type==='reopen').length);
@@ -600,7 +625,13 @@ function renderReport(v){
     }
   }
   html+=`<div class="empty">Contribution is witnessed here, never ranked.</div>`;
-  v.innerHTML=html;
+  v.innerHTML=`<div class="hearth-greet" style="margin:14px 0 10px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.5px;color:var(--accent2);font-weight:600">📜 SUNDAY DISPATCH</span>
+      <button onclick="loadDispatch(this)" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;padding:6px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--accent);cursor:pointer">READ IT</button>
+    </div>
+    <div id="dispatchBody" style="display:none;margin-top:10px;font-style:italic;font-size:14px;line-height:1.6;white-space:pre-wrap"></div>
+  </div>`+html;
 }
 // ---- Bartleby speaks (Eleven Labs TTS via /api/speak) ----
 let voiceOn=localStorage.getItem('hearth-voice')!=='off';
@@ -635,8 +666,8 @@ function sfx(name){
     else if(name==='error'){tone(c,196,t,0.12,0.09,'triangle');tone(c,185,t+0.14,0.16,0.09,'triangle')}
   }catch(e){}
 }
-async function speak(text){
-  if(!voiceOn||!text)return;
+async function speak(text,force){
+  if((!voiceOn&&!force)||!text)return;
   try{
     const r=await fetch('/api/speak',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text})});
     if(!r.ok){
