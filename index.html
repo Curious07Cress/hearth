@@ -614,6 +614,27 @@ function unlockAudio(){
   bartAudio.play().catch(()=>{});
   audioUnlocked=true;
 }
+// ---- Sound effects: soft synthesized earcons (no assets) ----
+let sfxCtx=null;
+function sfxCtxGet(){if(!sfxCtx)sfxCtx=new (window.AudioContext||window.webkitAudioContext)();if(sfxCtx.state==='suspended')sfxCtx.resume();return sfxCtx}
+function tone(ctx,freq,t0,dur,vol,type){
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.type=type||'sine';o.frequency.value=freq;
+  g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+0.015);g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
+  o.connect(g);g.connect(ctx.destination);o.start(t0);o.stop(t0+dur+0.05);
+}
+function sfx(name){
+  if(!voiceOn)return;
+  try{
+    const c=sfxCtxGet(),t=c.currentTime;
+    if(name==='listen'){tone(c,523,t,0.12,0.12);tone(c,659,t+0.09,0.16,0.12)}
+    else if(name==='sent'){tone(c,659,t,0.09,0.1);tone(c,523,t+0.07,0.14,0.08)}
+    else if(name==='proposal'){tone(c,587,t,0.14,0.1);tone(c,784,t+0.12,0.2,0.1)}
+    else if(name==='confirm'){tone(c,523,t,0.11,0.11);tone(c,659,t+0.08,0.11,0.11);tone(c,784,t+0.16,0.24,0.11)}
+    else if(name==='discard'){tone(c,220,t,0.16,0.09,'triangle')}
+    else if(name==='error'){tone(c,196,t,0.12,0.09,'triangle');tone(c,185,t+0.14,0.16,0.09,'triangle')}
+  }catch(e){}
+}
 async function speak(text){
   if(!voiceOn||!text)return;
   try{
@@ -690,6 +711,7 @@ function chipTap(i){
   runConverse({text:c.s});
 }
 function appendBubble(cls,text){const log=el('chatlog');const d=document.createElement('div');d.className='bubble '+cls;d.textContent=text;
+  if(cls==='err')sfx('error');
   if(cls==='bart'){const b=document.createElement('span');b.textContent=' ▶';b.style.cssText='cursor:pointer;opacity:.5;font-style:normal;margin-left:6px';b.onclick=()=>{unlockAudio();speak(text)};d.appendChild(b)}
   log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
 function showTyping(){const log=el('chatlog');const d=document.createElement('div');d.className='typing';d.id='typingRow';d.innerHTML='<span></span><span></span><span></span>';log.appendChild(d);log.scrollTop=log.scrollHeight}
@@ -745,10 +767,12 @@ async function startRec(opts){
       }catch(e){bub.textContent='🎤 (could not reach the house)'}
       if(!txt){if(bub.textContent==='🎤 …')bub.textContent='🎤 (nothing heard)';return}
       bub.textContent=txt;
+      sfx('sent');
       await runConverse({text:txt});
     };
     mediaRecorder.start();
     const btn=el('micBtn');if(btn)btn.classList.add('rec');
+    sfx('listen');
     showListenBar(opts.confirm?'SAY "YES" OR "NO"':'LISTENING — PAUSE TO SEND');
     startVAD(stream,opts.confirm?{maxMs:5000,silenceMs:1200}:{maxMs:30000,silenceMs:1600});
   }catch(e){toast('bartleby','Microphone access denied or unavailable. You may type instead.')}
@@ -844,6 +868,7 @@ function renderProposal(p){
   hint.textContent='SAY "YES" OR "NO" — OR TAP';
   box.appendChild(hint);
   log.appendChild(box);log.scrollTop=log.scrollHeight;
+  sfx('proposal');
   if(micStream&&micStream.active)setTimeout(()=>{if(pendingProposal)startRec({confirm:true})},400);
 }
 async function handleSpokenConfirm(b64,mime){
@@ -863,6 +888,7 @@ async function handleSpokenConfirm(b64,mime){
 }
 async function confirmProposal(btn){
   const p=pendingProposal;if(!p)return;
+  sfx('confirm');
   btn.closest('.proposal').querySelectorAll('button').forEach(b=>b.disabled=true);
   if(p.kind==='events'){
     // Create any proposed new tasks first, so events can reference them
@@ -922,6 +948,7 @@ async function confirmProposal(btn){
   pendingProposal=null;
 }
 async function rejectProposal(btn){
+  sfx('discard');
   btn.closest('.proposal').querySelectorAll('button').forEach(b=>b.disabled=true);
   await post({actor,type:'rejection',mission:'house',msg:'discarded proposal: '+(pendingProposal?pendingProposal.summary:'')});
   appendBubble('bart','Discarded. As you wish.');
