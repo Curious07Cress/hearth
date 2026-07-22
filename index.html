@@ -52,6 +52,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .agent-tag{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent2);letter-spacing:1px;font-weight:600}
 .cadence-label{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:3px;color:var(--accent);margin:20px 16px 0;font-weight:600}
 .section-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--dim);margin:14px 16px 2px}
+.bandnote{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1px;color:var(--dim);margin:6px 16px 2px;padding:7px 12px;background:var(--card2);border-radius:10px;border:1px dashed var(--line)}
 .task{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:8px 16px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
 .task.done{opacity:.55;box-shadow:none;background:var(--card2);border-color:transparent}
 .chk{width:24px;height:24px;min-width:24px;border-radius:8px;border:2px solid var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
@@ -353,7 +354,7 @@ async function postBounty(){
   if(!name||!amt){toast('bartleby','A bounty requires both a name and a sum.');return}
   const nb={id:'bounty-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
     mission:'house',name,category:'EXTRAS',shared:false,countable:false,
-    house:el('nbHouse').value,cadence:el('nbCad').value,audience:'all',sort:250,
+    house:el('nbHouse').value,cadence:el('nbCad').value,audience:'all',sort:250,comp:'bounty',
     bounty:amt,assigned_to:el('nbWho').value||null,requires_training:el('nbTrain').checked};
   try{const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(nb)});
     if(!r.ok){const b=await r.text();throw new Error('HTTP '+r.status+': '+b.slice(0,180))}
@@ -450,16 +451,18 @@ function render(){
     html+=catGroup(list);
     v.innerHTML=html;return;
   }
-  // ---- collapsible household sections ----
+  // ---- collapsible household sections (three-tier economy: duty / salary / bounty) ----
   const per=list.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
-  const daily=list.filter(t=>(t.cadence||'daily')==='daily'&&!(t.category==='PERSONAL'));
-  const weekly=list.filter(t=>t.cadence==='weekly');
-  const periodic=list.filter(t=>t.cadence==='monthly'||t.cadence==='quarterly');
+  const sal=list.filter(t=>t.comp==='salary'&&t.category!=='PERSONAL');
+  const daily=list.filter(t=>(t.cadence||'daily')==='daily'&&t.category!=='PERSONAL'&&t.comp!=='salary');
+  const weekly=list.filter(t=>t.cadence==='weekly'&&t.comp!=='salary');
+  const periodic=list.filter(t=>(t.cadence==='monthly'||t.cadence==='quarterly')&&t.comp!=='salary');
   const perDone=per.length&&per.every(t=>doneState(t));
   const openBounties=bounties.filter(t=>['open','requested','claimed'].includes(bountyState(t).s));
   const openSum=openBounties.reduce((s,t)=>s+Number(t.bounty),0);
   const payoutsDue=bounties.filter(t=>{const b=bountyState(t);return b.s==='done'&&personalClear(b.by)}).length;
-  secDefaults={personal:!perDone,daily:false,weekly:false,periodic:false,
+  const salLeft=sal.filter(t=>!t.countable&&!doneState(t)).length;
+  secDefaults={personal:!perDone,salary:perDone&&salLeft>0,daily:false,weekly:false,periodic:false,
     extras:isAdult(actor)?payoutsDue>0:(personalClear(actor)&&openBounties.length>0)};
   function remaining(ts){return ts.filter(t=>!t.countable&&!doneState(t)).length}
   function section(key,label,ts,body,countStr){
@@ -468,15 +471,16 @@ function render(){
     html+=`<div class="sechead ${open?'open':''} ${key==='extras'?'gold':''}" onclick="toggleSec('${key}')"><span class="chev">▶</span><span class="sl">${label}</span><span class="sc ${rem==='✓'?'clear':''}">${rem}</span></div>`;
     if(open)html+=body;
   }
-  section('personal','🛏️ PERSONAL DAILIES',per,catGroup(per).replace(/<div class="section-label">.*?<\/div>/,''));
-  section('daily','☀️ DAILY',daily,catGroup(daily));
+  section('personal','🛏️ PERSONAL DUTIES',per,`<div class="bandnote">UNPAID · THE HOUSE IS ALL OF OURS — AND THESE UNLOCK ALL PAY</div>`+catGroup(per).replace(/<div class="section-label">.*?<\/div>/,''));
+  if(sal.length)section('salary','💵 SALARY TASKS',sal,`<div class="bandnote">EARNS THE WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS</div>`+catGroup(sal));
+  section('daily','☀️ DAILY DUTIES',daily,`<div class="bandnote">UNPAID HOUSEHOLD DUTIES — EVERYONE'S HOUSE, EVERYONE'S WORK</div>`+catGroup(daily));
   section('weekly','🗓️ WEEKLY',weekly,catGroup(weekly));
   section('periodic','📅 MONTHLY & QUARTERLY',periodic,catGroup(periodic));
   if(bounties.length){
-    let unlockCopy='DUTIES SETTLE FIRST — BOUNTIES PAY OUT ONCE PERSONAL DAILIES ARE DONE';
+    let unlockCopy='PAID PER JOB — CLAIM IT, DO IT, GET PAID · PERSONAL DUTIES SETTLE FIRST';
     if(!isAdult(actor)){
       const remainingP=per.filter(t=>!doneState(t)).map(t=>t.name.toLowerCase());
-      unlockCopy=remainingP.length?('🔒 TO UNLOCK PAY: '+remainingP.join(' · ')).toUpperCase():'🔓 PERSONAL DAILIES DONE — YOUR BOUNTIES PAY OUT';
+      unlockCopy=remainingP.length?('🔒 TO UNLOCK PAY: '+remainingP.join(' · ')).toUpperCase():'🔓 PERSONAL DUTIES DONE — YOUR BOUNTIES PAY OUT';
     }
     let bHtml=`<div class="section-label">${unlockCopy}</div>`;
     bounties.forEach(t=>{
@@ -605,19 +609,22 @@ function renderReport(v){
     html+=`</table>`;
     // allowance: 6-of-7 days with all personal dailies done
     const ALLOWANCE=40;
-    html+=`<div class="section-label">WEEKLY ALLOWANCE — $${ALLOWANCE} · PERSONAL DAILIES 6 OF 7 DAYS</div><table class="board"><tr><th>KID</th><th style="text-align:right">DAYS KEPT</th><th style="text-align:right">STATUS</th><th></th></tr>`;
+    const salTasks=tasks.filter(t=>t.comp==='salary');
+    const salaryMode=salTasks.length>0;
+    html+=`<div class="section-label">WEEKLY ALLOWANCE — $${ALLOWANCE} · ${salaryMode?'ON SALARY TASKS':'PERSONAL DAILIES'} 6 OF 7 DAYS</div><table class="board"><tr><th>KID</th><th style="text-align:right">DAYS KEPT</th><th style="text-align:right">STATUS</th><th></th></tr>`;
     const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
     kids.forEach(k=>{
       let kept=0;
       for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const dk=dayKey(d.getTime());
-        if(per.every(t=>events.some(e=>e.task_id===t.id&&e.type==='complete'&&e.actor===k.id&&dayKey(e.t)===dk)))kept++;}
+        if(salaryMode){if(salTasks.some(t=>events.some(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='count')&&e.actor===k.id&&dayKey(e.t)===dk)))kept++;}
+        else if(per.every(t=>events.some(e=>e.task_id===t.id&&e.type==='complete'&&e.actor===k.id&&dayKey(e.t)===dk)))kept++;}
       const eligible=kept>=6;
       const paidThisWeek=events.some(e=>e.type==='allowance'&&e.target===k.id&&e.t>=windowStart('weekly'));
       let status=paidThisWeek?'PAID ✓':eligible?'ELIGIBLE':'—';
       let btn=(isAdult(actor)&&eligible&&!paidThisWeek)?`<button class="payout" onclick="payAllowance('${k.id}',${ALLOWANCE})">PAY $${ALLOWANCE}</button>`:'';
       html+=`<tr><td>${k.n}</td><td class="num">${kept}/7</td><td class="num">${status}</td><td style="text-align:right">${btn}</td></tr>`;
     });
-    html+=`</table><div style="font-size:11px;color:var(--dim);margin:4px 18px;font-style:italic">Allowance is the salary; bounties are gig work. Duties are witnessed above — the two never mix.</div>`;
+    html+=`</table><div style="font-size:11px;color:var(--dim);margin:4px 18px;font-style:italic">Duties are unpaid — they're what living here means, and they unlock all pay. Salary is earned by showing up for the house 6 of 7 days. Bounties are gig work, paid per job. The three never mix.</div>`;
     const paidEvents=events.filter(e=>e.type==='payout'||e.type==='allowance').slice(0,20);
     if(paidEvents.length){
       html+=`<div class="section-label">PAID HISTORY</div><div class="ledger">`+
@@ -929,7 +936,7 @@ async function confirmProposal(btn){
         const id='task-'+nt.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000;
         const row={id,mission:'house',name:nt.name,category:nt.category||'HOUSE',
           shared:nt.shared!==false,countable:!!nt.countable,house:house,
-          cadence:nt.cadence||'once',audience:'all',sort:200};
+          cadence:nt.cadence||'once',audience:'all',sort:200,comp:'duty'};
         try{
           const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(row)});
           if(!r.ok)throw new Error(await r.text());
@@ -953,7 +960,7 @@ async function confirmProposal(btn){
     const b=p.bounty;
     const nb={id:'bounty-'+b.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
       mission:'house',name:b.name,category:'EXTRAS',shared:false,countable:false,
-      house:b.house||'both',cadence:b.cadence||'once',audience:'all',sort:250,
+      house:b.house||'both',cadence:b.cadence||'once',audience:'all',sort:250,comp:'bounty',
       bounty:b.amount,assigned_to:b.assigned_to||null,requires_training:!!b.requires_training};
     try{
       const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(nb)});
@@ -966,7 +973,7 @@ async function confirmProposal(btn){
   else if(p.kind==='suggestion'){
     const id='suggest-'+Date.now();
     const row={id,mission:'house',name:`Review: ${p.suggestion} (from ${actorName(actor)})`,category:'SUGGESTIONS',
-      shared:false,countable:false,house:'both',cadence:'once',audience:'adult',sort:290};
+      shared:false,countable:false,house:'both',cadence:'once',audience:'adult',sort:290,comp:'duty'};
     try{
       const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(row)});
       if(!r.ok)throw new Error(await r.text());
