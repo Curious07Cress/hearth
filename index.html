@@ -233,6 +233,19 @@ function windowStart(cad){
   if(cad==='quarterly'){d.setMonth(Math.floor(d.getMonth()/3)*3,1);return d.getTime()}
   return 0; // once
 }
+let viewAll=false;
+function taskVisibleToday(t){
+  if(t.bounty)return true;
+  const anchor=t.anchor||(((t.cadence||'daily')==='daily'||(t.cadence||'daily')==='once')?'calendar':'rolling');
+  if(anchor==='calendar')return !doneState(t);
+  // rolling: reappears interval_days after last completion
+  const ivDays=t.interval_days||({daily:1,weekly:7,monthly:30,quarterly:91}[t.cadence||'daily']||7);
+  let ev=events.filter(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='reopen'));
+  if(t.category==='PERSONAL')ev=ev.filter(e=>e.actor===actor);
+  const last=ev[0];
+  if(!last||last.type==='reopen')return true;
+  return Date.now()-last.t>=ivDays*86400000;
+}
 function doneState(t,forActor){
   const ws=windowStart(t.cadence||'daily');
   let ev=events.filter(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='reopen')&&e.t>=ws);
@@ -290,19 +303,37 @@ function countWindow(t){
   const ws=windowStart(t.cadence||'daily');
   return events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=ws).reduce((s,e)=>s+(e.qty||1),0);
 }
-async function toggle(id){
+async function toggle(id,elBtn){
   const t=tasks.find(x=>x.id===id);
   if(!doneState(t)){
     const ag=t.mission==='webapps'?'wren':'bartleby';
     const line=pick(ag==='wren'?WREN.done:BART.done);
+    if(elBtn&&tab==='house'&&!viewAll){
+      sfx('vanish');
+      const row=elBtn.closest('.task');
+      if(row){row.style.height=row.offsetHeight+'px';row.offsetHeight;
+        row.style.transition='all .38s ease';row.style.opacity='0';row.style.transform='scale(.92)';
+        row.style.height='0';row.style.paddingTop='0';row.style.paddingBottom='0';row.style.marginBottom='0';row.style.overflow='hidden';}
+      await new Promise(r=>setTimeout(r,380));
+    }else sfx('vanish');
     toast(ag,line);
     await post([{actor,task_id:id,type:'complete',mission:t.mission,msg:`completed "${t.name}"`},
                 {actor:ag,type:'agent_msg',mission:t.mission,msg:line}]);
+    checkAllClear();
   }else{
     await post({actor,task_id:id,type:'reopen',mission:t.mission,msg:`reopened "${t.name}"`});
   }
 }
+function checkAllClear(){
+  if(tab!=='house'||viewAll)return;
+  const left=visibleTasks('house').filter(t=>!t.bounty).filter(taskVisibleToday).length;
+  if(left===0){
+    const k='hearth-clear-'+actor+'-'+dayKey(Date.now());
+    if(!localStorage.getItem(k)){localStorage.setItem(k,'1');setTimeout(()=>sfx('allclear'),200)}
+  }
+}
 async function bump(id){
+  sfx('pop');
   const t=tasks.find(x=>x.id===id);
   const n=countWindow(t)+1;
   if(n===1){const line=pick(BART.done);toast('bartleby',line);
@@ -311,6 +342,7 @@ async function bump(id){
   else await post({actor,task_id:id,type:'count',mission:t.mission,qty:1,msg:`logged "${t.name}" (×${n} today)`});
 }
 async function plusOne(id){
+  sfx('pop');
   const t=tasks.find(x=>x.id===id);
   await post({actor,task_id:id,type:'complete',mission:t.mission,msg:`also did "${t.name}"`});
 }
@@ -413,8 +445,12 @@ function render(){
   if(tab==='admin'){renderAdmin(v);return}
   const m=MISSIONS[tab];
   let html=`<div class="mission"><h2>${m.t}</h2><div class="why">"${m.why}" · <span class="agent-tag">AGENT: ${m.agent.toUpperCase()}</span></div></div>`;
-  const list=visibleTasks(tab).filter(t=>!t.bounty);
+  const today=tab==='house'&&!viewAll;
+  const listAll=visibleTasks(tab).filter(t=>!t.bounty);
+  const list=today?listAll.filter(taskVisibleToday):listAll;
   const bounties=tab==='house'?visibleTasks('house').filter(t=>t.bounty):[];
+  if(actor==='dad'&&tab==='house')html+=`<div class="chiprow" style="margin-top:4px"><div class="qchip" onclick="viewAll=!viewAll;render()">👁 ${viewAll?'SHOWING ALL — TAP FOR TODAY':'TODAY VIEW — TAP FOR ALL'}</div></div>`;
+  if(today&&!list.length)html+=`<div class="hearth-greet" style="text-align:center"><div class="hg-line">✨ The house asks nothing more of you today.</div><div class="hg-health">DUTIES SETTLED · SALARY EARNED · REST IS ALSO CARE</div></div>`;
   function taskCard(t){
     if(t.countable){
       const n=countWindow(t);
@@ -434,7 +470,7 @@ function render(){
       if(note)attr+=`<br>📝 ${note.msg} <span style="opacity:.7">— ${actorName(note.actor)}</span>`;
     }
     return `<div class="task ${done?'done':''}">
-      <div class="chk" ${mine?`onclick="toggle('${t.id}')"`:'style="opacity:.3"'}>${done?'✓':''}</div>
+      <div class="chk" ${mine?`onclick="toggle('${t.id}',this)"`:'style="opacity:.3"'}>${done?'✓':''}</div>
       <div style="flex:1"><div class="tname">${t.name}</div>${t.detail?`<div class="tmeta" style="opacity:.75">${t.detail}</div>`:''}
       <div class="tmeta">${done?`<span class="attr">${attr}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
       ${done?`<button class="claimbtn" style="color:var(--dim);border-color:var(--line)" onclick="addNote('${t.id}')">✎</button>`:''}
@@ -471,6 +507,7 @@ function render(){
     html+=`<div class="sechead ${open?'open':''} ${key==='extras'?'gold':''}" onclick="toggleSec('${key}')"><span class="chev">▶</span><span class="sl">${label}</span><span class="sc ${rem==='✓'?'clear':''}">${rem}</span></div>`;
     if(open)html+=body;
   }
+  const _sec=section;section=function(k,l,arr,body,cs){if(today&&!arr.length)return;_sec(k,l,arr,body,cs)};
   section('personal','🛏️ PERSONAL DUTIES',per,`<div class="bandnote">UNPAID · THE HOUSE IS ALL OF OURS — AND THESE UNLOCK ALL PAY</div>`+catGroup(per).replace(/<div class="section-label">.*?<\/div>/,''));
   if(sal.length)section('salary','💵 SALARY TASKS',sal,`<div class="bandnote">EARNS THE WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS</div>`+catGroup(sal));
   section('daily','☀️ DAILY DUTIES',daily,`<div class="bandnote">UNPAID HOUSEHOLD DUTIES — EVERYONE'S HOUSE, EVERYONE'S WORK</div>`+catGroup(daily));
@@ -671,6 +708,9 @@ function sfx(name){
     else if(name==='confirm'){tone(c,523,t,0.11,0.11);tone(c,659,t+0.08,0.11,0.11);tone(c,784,t+0.16,0.24,0.11)}
     else if(name==='discard'){tone(c,220,t,0.16,0.09,'triangle')}
     else if(name==='error'){tone(c,196,t,0.12,0.09,'triangle');tone(c,185,t+0.14,0.16,0.09,'triangle')}
+    else if(name==='vanish'){tone(c,784,t,0.08,0.1);tone(c,1047,t+0.06,0.09,0.1);tone(c,1319,t+0.12,0.18,0.09)}
+    else if(name==='pop'){tone(c,880,t,0.07,0.11)}
+    else if(name==='allclear'){tone(c,523,t,0.14,0.12);tone(c,659,t+0.12,0.14,0.12);tone(c,784,t+0.24,0.14,0.12);tone(c,1047,t+0.36,0.4,0.13)}
   }catch(e){}
 }
 async function speak(text,force){
