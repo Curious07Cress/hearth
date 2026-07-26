@@ -324,9 +324,16 @@ async function toggle(id,elBtn){
     await post({actor,task_id:id,type:'reopen',mission:t.mission,msg:`reopened "${t.name}"`});
   }
 }
+async function logVisit(){
+  if(!actor)return;
+  const k='hearth-visit-'+actor,last=+localStorage.getItem(k)||0;
+  if(Date.now()-last<30*60*1000)return;
+  localStorage.setItem(k,Date.now());
+  try{await fetch(SB+'/events',{method:'POST',headers:HDRS,body:JSON.stringify({actor,type:'visit',mission:'house',msg:'opened the app'})})}catch(e){}
+}
 function checkAllClear(){
   if(tab!=='house'||viewAll)return;
-  const left=visibleTasks('house').filter(t=>!t.bounty).filter(taskVisibleToday).length;
+  const left=visibleTasks('house').filter(t=>!t.bounty&&!t.countable&&t.anchor!=='asneeded').filter(taskVisibleToday).length;
   if(left===0){
     const k='hearth-clear-'+actor+'-'+dayKey(Date.now());
     if(!localStorage.getItem(k)){localStorage.setItem(k,'1');setTimeout(()=>sfx('allclear'),200)}
@@ -357,7 +364,7 @@ async function nudge(id){
   toast('wren',line);
   await post({actor:'wren',type:'agent_msg',mission:t.mission,msg:line+` [re: ${t.name}]`});
 }
-function setActor(id){actor=id;localStorage.setItem('hearth-actor',id);if(tab==='webapps'&&id!=='dad')tab='house';el('picker').classList.remove('show');render()}
+function setActor(id){actor=id;localStorage.setItem('hearth-actor',id);if(tab==='webapps'&&id!=='dad')tab='house';el('picker').classList.remove('show');logVisit();render()}
 function openPicker(){el('pickerGrid').innerHTML=ACTORS.filter(a=>a.h).map(a=>`<div class="pcard" onclick="setActor('${a.id}')"><div class="pavatar">${INITIALS[a.id]}</div><div class="pname">${a.n}</div></div>`).join('');el('picker').classList.add('show')}
 function setHouse(h){house=h;localStorage.setItem('hearth-house',h);paint();render()}
 function visibleTabs(){
@@ -407,7 +414,7 @@ function periodRange(){
   const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
 }
 const BOUNTY_IDS=()=>new Set(tasks.filter(t=>t.bounty).map(t=>t.id));
-const CONVO_TYPES=['utterance','proposal','confirmation','rejection'];
+const CONVO_TYPES=['utterance','proposal','confirmation','rejection','visit'];
 function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.type!=='admin'&&e.type!=='note'&&!CONVO_TYPES.includes(e.type)&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
 function tally(aid,from,to){
   const ev=houseEvents(from,to).filter(e=>e.actor===aid);
@@ -438,7 +445,7 @@ function render(){
   if(!tasks.length){v.innerHTML='<div class="empty">'+(syncOK?'Loading the ledger…':'Cannot reach the ledger. Check connection.')+'</div>';return}
   if(tab==='ledger'){
     v.innerHTML=`<div class="section-label" style="margin-top:16px">SHARED EVENT STREAM — ALL DEVICES</div><div class="ledger">`+
-      (events.length?events.slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.type==='note'?'📝 '+e.msg:CONVO_TYPES.includes(e.type)?'💬 '+e.msg:(e.msg||e.type)}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
+      (events.length?events.filter(e=>e.type!=='visit').slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.type==='note'?'📝 '+e.msg:CONVO_TYPES.includes(e.type)?'💬 '+e.msg:(e.msg||e.type)}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
     return;
   }
   if(tab==='report'){renderReport(v);return}
@@ -450,7 +457,7 @@ function render(){
   const list=today?listAll.filter(taskVisibleToday):listAll;
   const bounties=tab==='house'?visibleTasks('house').filter(t=>t.bounty):[];
   if(actor==='dad'&&tab==='house')html+=`<div class="chiprow" style="margin-top:4px"><div class="qchip" onclick="viewAll=!viewAll;render()">👁 ${viewAll?'SHOWING ALL — TAP FOR TODAY':'TODAY VIEW — TAP FOR ALL'}</div></div>`;
-  if(today&&!list.length)html+=`<div class="hearth-greet" style="text-align:center"><div class="hg-line">✨ The house asks nothing more of you today.</div><div class="hg-health">DUTIES SETTLED · SALARY EARNED · REST IS ALSO CARE</div></div>`;
+  if(today&&!list.filter(t=>!t.countable&&t.anchor!=='asneeded').length)html+=`<div class="hearth-greet" style="text-align:center"><div class="hg-line">✨ The house asks nothing more of you today.</div><div class="hg-health">DUTIES SETTLED · SALARY EARNED · REST IS ALSO CARE</div></div>`;
   function taskCard(t){
     if(t.countable){
       const n=countWindow(t);
@@ -488,17 +495,18 @@ function render(){
     v.innerHTML=html;return;
   }
   // ---- collapsible household sections (three-tier economy: duty / salary / bounty) ----
-  const per=list.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
-  const sal=list.filter(t=>t.comp==='salary'&&t.category!=='PERSONAL');
-  const daily=list.filter(t=>(t.cadence||'daily')==='daily'&&t.category!=='PERSONAL'&&t.comp!=='salary');
-  const weekly=list.filter(t=>t.cadence==='weekly'&&t.comp!=='salary');
-  const periodic=list.filter(t=>(t.cadence==='monthly'||t.cadence==='quarterly')&&t.comp!=='salary');
+  const asneed=list.filter(t=>t.anchor==='asneeded');
+  const per=list.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily'&&t.anchor!=='asneeded');
+  const sal=list.filter(t=>t.comp==='salary'&&t.category!=='PERSONAL'&&t.anchor!=='asneeded');
+  const daily=list.filter(t=>(t.cadence||'daily')==='daily'&&t.category!=='PERSONAL'&&t.comp!=='salary'&&t.anchor!=='asneeded');
+  const weekly=list.filter(t=>t.cadence==='weekly'&&t.comp!=='salary'&&t.anchor!=='asneeded');
+  const periodic=list.filter(t=>(t.cadence==='monthly'||t.cadence==='quarterly')&&t.comp!=='salary'&&t.anchor!=='asneeded');
   const perDone=per.length&&per.every(t=>doneState(t));
   const openBounties=bounties.filter(t=>['open','requested','claimed'].includes(bountyState(t).s));
   const openSum=openBounties.reduce((s,t)=>s+Number(t.bounty),0);
   const payoutsDue=bounties.filter(t=>{const b=bountyState(t);return b.s==='done'&&personalClear(b.by)}).length;
   const salLeft=sal.filter(t=>!t.countable&&!doneState(t)).length;
-  secDefaults={personal:!perDone,salary:perDone&&salLeft>0,daily:false,weekly:false,periodic:false,
+  secDefaults={personal:!perDone,salary:perDone&&salLeft>0,asneeded:false,daily:false,weekly:false,periodic:false,
     extras:isAdult(actor)?payoutsDue>0:(personalClear(actor)&&openBounties.length>0)};
   function remaining(ts){return ts.filter(t=>!t.countable&&!doneState(t)).length}
   function section(key,label,ts,body,countStr){
@@ -510,6 +518,7 @@ function render(){
   const _sec=section;section=function(k,l,arr,body,cs){if(today&&!arr.length)return;_sec(k,l,arr,body,cs)};
   section('personal','🛏️ PERSONAL DUTIES',per,`<div class="bandnote">UNPAID · THE HOUSE IS ALL OF OURS — AND THESE UNLOCK ALL PAY</div>`+catGroup(per).replace(/<div class="section-label">.*?<\/div>/,''));
   if(sal.length)section('salary','💵 SALARY TASKS',sal,`<div class="bandnote">EARNS THE WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS</div>`+catGroup(sal));
+  if(asneed.length)section('asneeded','🔔 AS NEEDED',asneed,`<div class="bandnote">WHEN THE HOUSE CALLS FOR IT — LOG EACH TIME IT HAPPENS</div>`+catGroup(asneed));
   section('daily','☀️ DAILY DUTIES',daily,`<div class="bandnote">UNPAID HOUSEHOLD DUTIES — EVERYONE'S HOUSE, EVERYONE'S WORK</div>`+catGroup(daily));
   section('weekly','🗓️ WEEKLY',weekly,catGroup(weekly));
   section('periodic','📅 MONTHLY & QUARTERLY',periodic,catGroup(periodic));
@@ -542,7 +551,16 @@ function render(){
 }
 function renderAdmin(v){
   const kids=ACTORS.filter(a=>a.h&&!a.adult);
-  let html=`<div class="section-label" style="margin-top:16px">BOUNTY RESETS — DELETES THAT BOUNTY'S LEDGER EVENTS</div>`;
+  let html=`<div class="section-label" style="margin-top:16px">LAST SEEN — WHO'S LOOKING AT THE APP</div><table class="board"><tr><th>WHO</th><th style="text-align:right">LAST OPENED</th><th style="text-align:right">VISITS THIS WEEK</th></tr>`;
+  const wkS=windowStart('weekly');
+  ACTORS.filter(a=>a.h).forEach(a=>{
+    const vs=events.filter(e=>e.type==='visit'&&e.actor===a.id);
+    const last=vs[0];
+    const wkN=vs.filter(e=>e.t>=wkS).length;
+    html+=`<tr><td>${a.n}</td><td style="text-align:right">${last?fmt(last.t):'—'}</td><td style="text-align:right">${wkN}</td></tr>`;
+  });
+  html+=`</table>`;
+  html+=`<div class="section-label" style="margin-top:16px">BOUNTY RESETS — DELETES THAT BOUNTY'S LEDGER EVENTS</div>`;
   tasks.filter(t=>t.bounty).forEach(t=>{
     const b=bountyState(t);
     html+=`<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}</div><div class="tmeta">state: ${b.s}${b.by?' · '+actorName(b.by):''} · $${t.bounty}</div></div><button class="danger-btn" onclick="arm('rb-${t.id}',()=>resetBounty('${t.id}'))">${armed==='rb-'+t.id?'SURE?':'RESET'}</button></div>`;
@@ -1039,8 +1057,9 @@ if(new URLSearchParams(location.search).get('listen')==='1'){
   if(actor){tab='hearth';setTimeout(()=>{render();startRec({hold:false}).catch(()=>{})},300)}
 }
 fetchAll();
+logVisit();
 setInterval(fetchAll,30000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetchAll()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchAll();logVisit()}});
 </script>
 </body>
 </html>
