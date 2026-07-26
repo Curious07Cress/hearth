@@ -67,6 +67,31 @@ const TOOLS = [
     },
   },
   {
+    name: 'create_task',
+    description: "ADMIN ONLY (dad): draft a new task of any kind — duty, salary, or bounty — with full taxonomy. Every axis must be resolved before proposing: if the admin's request leaves comp (why paid), anchor (what makes it due), or a required dependent field ambiguous, DO NOT GUESS — ask one clarifying question and wait. The tool will reject invalid drafts. Use draft_bounty only for quick one-off paid jobs; use this for anything recurring or structural.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        detail: { type: 'string', description: 'The house standard: what properly done means. Optional but encouraged.' },
+        category: { type: 'string', description: 'One of: PETS, KITCHEN, PERSONAL, COMMON, LAUNDRY, BATHROOMS, HOUSE, POOL & HOT TUB, CARS, MAINTENANCE.' },
+        comp: { type: 'string', enum: ['duty', 'salary', 'bounty'] },
+        anchor: { type: 'string', enum: ['calendar', 'rolling', 'asneeded'] },
+        cadence: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'quarterly', 'once'], description: 'Required when anchor=calendar.' },
+        interval_days: { type: 'number', description: 'Required when anchor=rolling: reappears N days after completion.' },
+        window_start: { type: 'string', description: 'Optional HH:MM 24h — task hidden before this time.' },
+        window_end: { type: 'string', description: 'Optional HH:MM 24h — running late after this time.' },
+        house: { type: 'string', enum: ['both', 'westford', 'york'] },
+        countable: { type: 'boolean', description: 'Logged per occurrence. Forced true for asneeded.' },
+        audience: { type: 'string', enum: ['all', 'adult'] },
+        amount: { type: 'number', description: 'Required when comp=bounty: dollars paid per completion.' },
+        requires_training: { type: 'boolean' },
+        summary: { type: 'string', description: "One short sentence in Bartleby's voice reading the task back for confirmation." },
+      },
+      required: ['name', 'comp', 'anchor', 'summary'],
+    },
+  },
+  {
     name: 'propose_suggestion',
     description: "Capture a family member's suggestion or idea — for the household, the task list, the app, or how anything works around here. On confirmation it becomes a review item for dad. Use whenever someone offers an idea, complaint-with-a-fix, or 'we should...' — any actor may suggest, including the children.",
     input_schema: {
@@ -153,7 +178,7 @@ Rules:
 - When the person narrates chores they did, call propose_events with one event per distinct action. Matching hierarchy, strictly in order: (1) map to an existing task_id — be generous with fuzzy matches ("did the dishes" = the dishwasher task); (2) no match but it's clearly real housework → include a new_task proposal so the household gains a task; (3) genuinely ambiguous → skip the tool and ask ONE short clarifying question instead.
 - Prefer type "complete" for a matched task, "count" for tasks marked countable (include qty), "note" only for one-off observations that shouldn't become tasks.
 - Never invent a task_id that isn't in the TASKS list above.
-- Only call draft_bounty if the speaker is dad and clearly wants to create new paid work.
+- Only call draft_bounty if the speaker is dad and clearly wants to create a quick one-off paid job. For anything recurring or structural (duties, salary tasks, as-needed tasks, or bounties with schedules), use create_task — dad only. Resolve every taxonomy axis by asking before proposing; the tool rejects guesses.
 - Anyone — including the children — may offer suggestions about the household, tasks, or this app. When they do, call propose_suggestion, capturing their idea faithfully. The house values petitions from all residents; receive them graciously (a dry aside is permitted).
 - Only call query_ledger if you genuinely need history beyond the live status above (e.g. exactly when something was done, or activity from prior days).
 - Questions like "what's left today?" or "what has been done?" are answered DIRECTLY from the live status above — no tools, no disclaimers about your powers. Lead with the person's own OPEN personal dailies, then OPEN shared duties. Keep it to a handful of items grouped naturally; if many remain, name the most pressing few and summarize the rest.
@@ -262,6 +287,26 @@ async function handleConverse(req, env) {
     if (toolUse.name === 'draft_bounty') {
       proposal = { kind: 'bounty', bounty: toolUse.input, summary: toolUse.input.summary };
       if (!finalText) finalText = toolUse.input.summary;
+      break;
+    }
+    if (toolUse.name === 'create_task') {
+      const inp = toolUse.input;
+      let err = null;
+      if (actor !== 'dad') err = 'Only dad may create tasks. Politely decline and suggest they file a suggestion instead.';
+      else if (!inp.name) err = 'name is required';
+      else if (!['duty', 'salary', 'bounty'].includes(inp.comp)) err = 'comp must be duty, salary, or bounty — ask the admin which';
+      else if (!['calendar', 'rolling', 'asneeded'].includes(inp.anchor)) err = 'anchor must be calendar, rolling, or asneeded — ask what makes this task due';
+      else if (inp.anchor === 'calendar' && !inp.cadence) err = 'calendar tasks need a cadence (daily/weekly/monthly/quarterly/once) — ask';
+      else if (inp.anchor === 'rolling' && !(inp.interval_days > 0)) err = 'rolling tasks need interval_days > 0 — ask how many days after completion it returns';
+      else if (inp.comp === 'bounty' && !(inp.amount > 0)) err = 'bounties need a dollar amount — ask';
+      else if ((inp.window_start && !/^\d{1,2}:\d{2}$/.test(inp.window_start)) || (inp.window_end && !/^\d{1,2}:\d{2}$/.test(inp.window_end))) err = 'time windows must be HH:MM 24h';
+      if (err) {
+        messages.push({ role: 'assistant', content: resp.content });
+        messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: 'INVALID TASK: ' + err + '. Ask the user for the missing information in your reply — do not guess.', is_error: true }] });
+        continue;
+      }
+      proposal = { kind: 'task', task: inp, summary: inp.summary };
+      if (!finalText) finalText = inp.summary;
       break;
     }
     if (toolUse.name === 'propose_suggestion') {
