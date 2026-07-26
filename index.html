@@ -559,6 +559,42 @@ function render(){
   }
   v.innerHTML=html;
 }
+let ntSel={comp:null,anchor:null};
+function ntPick(axis,v){
+  ntSel[axis]=v;
+  const rowId=axis==='comp'?'ntCompRow':'ntAnchorRow';
+  el(rowId).querySelectorAll('.qchip').forEach(c=>{c.style.background=c.dataset.v===v?'var(--accent2)':'var(--card)';c.style.color=c.dataset.v===v?'#fff':'var(--accent)'});
+  el('ntCadWrap').style.display=ntSel.anchor==='calendar'?'block':'none';
+  el('ntIntWrap').style.display=ntSel.anchor==='rolling'?'block':'none';
+  el('ntAmtWrap').style.display=ntSel.comp==='bounty'?'block':'none';
+}
+async function ntCreate(btn){
+  const err=el('ntErr');err.textContent='';
+  const name=el('ntName').value.trim();
+  if(!name)return err.textContent='Name required.';
+  if(!ntSel.comp)return err.textContent='Pick why paid: duty, salary, or bounty.';
+  if(!ntSel.anchor)return err.textContent='Pick what makes it due.';
+  if(ntSel.anchor==='rolling'&&!(+el('ntInt').value>0))return err.textContent='Rolling tasks need an interval in days.';
+  if(ntSel.comp==='bounty'&&!(+el('ntAmt').value>0))return err.textContent='Bounties need a dollar amount.';
+  const hhmm=/^\d{1,2}:\d{2}$/;
+  if((el('ntWs').value&&!hhmm.test(el('ntWs').value))||(el('ntWe').value&&!hhmm.test(el('ntWe').value)))return err.textContent='Time windows must be HH:MM (24h).';
+  btn.disabled=true;
+  const row={id:'task-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
+    mission:'house',name,detail:el('ntDetail').value.trim()||null,
+    category:ntSel.comp==='bounty'?'EXTRAS':el('ntCat').value,
+    shared:ntSel.comp!=='bounty',countable:ntSel.anchor==='asneeded',
+    house:el('ntHouse').value,cadence:ntSel.anchor==='calendar'?el('ntCad').value:(ntSel.anchor==='rolling'?'weekly':'daily'),
+    audience:'all',sort:ntSel.comp==='bounty'?250:200,comp:ntSel.comp,anchor:ntSel.anchor,
+    interval_days:ntSel.anchor==='rolling'?+el('ntInt').value:null,
+    window_start:el('ntWs').value||null,window_end:el('ntWe').value||null,
+    bounty:ntSel.comp==='bounty'?+el('ntAmt').value:null,requires_training:false};
+  try{
+    const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(row)});
+    if(!r.ok)throw new Error(await r.text());
+    await post({actor,type:'admin',mission:'house',msg:`admin: created task "${name}" (${ntSel.comp}/${ntSel.anchor})`});
+    sfx('confirm');ntSel={comp:null,anchor:null};
+  }catch(e){err.textContent='Failed: '+String(e.message).slice(0,140);btn.disabled=false}
+}
 function renderAdmin(v){
   const kids=ACTORS.filter(a=>a.h&&!a.adult);
   let html=`<div class="section-label" style="margin-top:16px">LAST SEEN — WHO'S LOOKING AT THE APP</div><table class="board"><tr><th>WHO</th><th style="text-align:right">LAST OPENED</th><th style="text-align:right">VISITS THIS WEEK</th></tr>`;
@@ -570,6 +606,28 @@ function renderAdmin(v){
     html+=`<tr><td>${a.n}</td><td style="text-align:right">${last?fmt(last.t):'—'}</td><td style="text-align:right">${wkN}</td></tr>`;
   });
   html+=`</table>`;
+  html+=`<div class="section-label" style="margin-top:16px">NEW TASK — FULL TAXONOMY</div>
+  <div class="hearth-greet" style="margin:6px 16px">
+    <input id="ntName" placeholder="Task name" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);font-family:'IBM Plex Sans';font-size:14px;margin-bottom:8px">
+    <input id="ntDetail" placeholder="Standard — what properly done means (optional)" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);font-family:'IBM Plex Sans';font-size:13px;margin-bottom:8px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--dim);margin:4px 0 3px">WHY PAID</div>
+    <div class="chiprow" style="margin:0 0 6px" id="ntCompRow">${['duty','salary','bounty'].map(c=>`<div class="qchip" data-v="${c}" onclick="ntPick('comp','${c}')">${c.toUpperCase()}</div>`).join('')}</div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--dim);margin:4px 0 3px">WHAT MAKES IT DUE</div>
+    <div class="chiprow" style="margin:0 0 6px" id="ntAnchorRow">${[['calendar','ON A SCHEDULE'],['rolling','AFTER LAST DONE'],['asneeded','AS NEEDED']].map(([v,l])=>`<div class="qchip" data-v="${v}" onclick="ntPick('anchor','${v}')">${l}</div>`).join('')}</div>
+    <div id="ntCadWrap" style="display:none"><select id="ntCad" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);margin-bottom:8px"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="once">Once</option></select></div>
+    <div id="ntIntWrap" style="display:none"><input id="ntInt" type="number" placeholder="Returns after how many days?" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);margin-bottom:8px"></div>
+    <div id="ntAmtWrap" style="display:none"><input id="ntAmt" type="number" placeholder="Bounty $ amount" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <select id="ntCat" style="flex:1;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text)"><option>KITCHEN</option><option>PETS</option><option>PERSONAL</option><option>COMMON</option><option>LAUNDRY</option><option>BATHROOMS</option><option>HOUSE</option><option>POOL & HOT TUB</option><option>CARS</option><option>MAINTENANCE</option></select>
+      <select id="ntHouse" style="flex:1;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text)"><option value="both">Both houses</option><option value="westford">Westford</option><option value="york">York</option></select>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input id="ntWs" placeholder="From HH:MM (opt)" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);font-size:12px">
+      <input id="ntWe" placeholder="By HH:MM (opt)" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);font-size:12px">
+    </div>
+    <button onclick="ntCreate(this)" style="width:100%;padding:11px;border-radius:12px;border:none;background:var(--ok);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1px;font-weight:600;cursor:pointer">CREATE TASK</button>
+    <div id="ntErr" style="color:var(--danger);font-size:12px;margin-top:6px"></div>
+  </div>`;
   html+=`<div class="section-label" style="margin-top:16px">BOUNTY RESETS — DELETES THAT BOUNTY'S LEDGER EVENTS</div>`;
   tasks.filter(t=>t.bounty).forEach(t=>{
     const b=bountyState(t);
@@ -961,6 +1019,11 @@ function renderProposal(p){
   if(p.kind==='events'){
     box.innerHTML=`<div class="pl">PROPOSED LEDGER ENTRIES</div><ul>${p.events.map(e=>`<li>${e.new_task?'➕ new task: "'+e.new_task.name+'" ('+e.new_task.cadence+') — ':''}${e.msg}${e.qty?' ×'+e.qty:''}</li>`).join('')}</ul>
       <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">CONFIRM</button></div>`;
+  }else if(p.kind==='task'){
+    const tk=p.task;
+    const spec=[tk.comp.toUpperCase(),tk.anchor==='asneeded'?'AS NEEDED':tk.anchor==='rolling'?`EVERY ${tk.interval_days}D AFTER DONE`:(tk.cadence||'daily').toUpperCase(),(tk.house||'both').toUpperCase(),tk.window_end?'BY '+tk.window_end:tk.window_start?'FROM '+tk.window_start:null,tk.amount?'$'+tk.amount:null].filter(Boolean).join(' · ');
+    box.innerHTML=`<div class="pl">NEW TASK — ${spec}</div><ul><li><b>${tk.name}</b>${tk.detail?' — '+tk.detail:''}</li></ul>
+      <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">CREATE</button></div>`;
   }else if(p.kind==='suggestion'){
     box.innerHTML=`<div class="pl">SUGGESTION FOR DAD'S REVIEW</div><ul><li>${p.suggestion}</li></ul>
       <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">SUBMIT</button></div>`;
@@ -1021,9 +1084,6 @@ async function confirmProposal(btn){
     appendBubble('bart','Recorded. Thank you.');
     speak('Recorded. Thank you.');
     convoHistory.push({role:'user',text:'(confirmed the proposal)'},{role:'assistant',text:'Recorded. Thank you.'});
-  }else if(p.kind==='suggestion'){
-    box.innerHTML=`<div class="pl">SUGGESTION FOR DAD'S REVIEW</div><ul><li>${p.suggestion}</li></ul>
-      <div class="prow"><button class="pcancel" onclick="rejectProposal(this)">DISCARD</button><button class="pconfirm" onclick="confirmProposal(this)">SUBMIT</button></div>`;
   }else if(p.kind==='bounty'){
     const b=p.bounty;
     const nb={id:'bounty-'+b.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
@@ -1037,6 +1097,24 @@ async function confirmProposal(btn){
                   {actor,type:'confirmation',mission:'house',msg:'confirmed via Tell Bartleby: '+p.summary}]);
       appendBubble('bart','Posted. I shall inform the household.');
     }catch(e){appendBubble('err','Posting failed — '+e.message)}
+  }
+  else if(p.kind==='task'){
+    const tk=p.task;
+    const row={id:'task-'+tk.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30)+'-'+Date.now()%10000,
+      mission:'house',name:tk.name,detail:tk.detail||null,category:tk.comp==='bounty'?'EXTRAS':(tk.category||'HOUSE'),
+      shared:tk.comp!=='bounty',countable:tk.anchor==='asneeded'?true:!!tk.countable,
+      house:tk.house||'both',cadence:tk.anchor==='calendar'?(tk.cadence||'daily'):(tk.anchor==='rolling'?'weekly':'daily'),
+      audience:tk.audience||'all',sort:tk.comp==='bounty'?250:200,comp:tk.comp,anchor:tk.anchor,
+      interval_days:tk.anchor==='rolling'?tk.interval_days:null,window_start:tk.window_start||null,window_end:tk.window_end||null,
+      bounty:tk.comp==='bounty'?tk.amount:null,requires_training:!!tk.requires_training};
+    try{
+      const r=await fetch(SB+'/tasks',{method:'POST',headers:HDRS,body:JSON.stringify(row)});
+      if(!r.ok)throw new Error(await r.text());
+      await post([{actor,type:'admin',mission:'house',msg:`admin: created task "${tk.name}" (${tk.comp}/${tk.anchor}) via Tell Bartleby`},
+                  {actor,type:'confirmation',mission:'house',msg:'confirmed via Tell Bartleby: '+p.summary}]);
+      appendBubble('bart','Created. The house has taken note of her new expectation.');
+      speak('Created. The house has taken note of her new expectation.');
+    }catch(e){appendBubble('err','Creation failed — '+String(e.message).slice(0,150))}
   }
   else if(p.kind==='suggestion'){
     const id='suggest-'+Date.now();
