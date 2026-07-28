@@ -78,6 +78,7 @@ const TOOLS = [
         comp: { type: 'string', enum: ['duty', 'salary', 'bounty'] },
         anchor: { type: 'string', enum: ['calendar', 'rolling', 'asneeded'] },
         cadence: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'quarterly', 'once'], description: 'Required when anchor=calendar.' },
+        due_day: { type: 'number', description: 'Optional, calendar tasks only: day of week the task is due (0=Sunday .. 6=Saturday), e.g. trash night. Task appears only on that day.' },
         interval_days: { type: 'number', description: 'Required when anchor=rolling: reappears N days after completion.' },
         window_start: { type: 'string', description: 'Optional HH:MM 24h — task hidden before this time.' },
         window_end: { type: 'string', description: 'Optional HH:MM 24h — running late after this time.' },
@@ -144,7 +145,8 @@ function systemPrompt(house, actor, tasks, events) {
     .map(t => {
       const st = taskStatus(t, events, actor);
       const mark = st.done ? `DONE by ${st.by}` : 'OPEN';
-      return `- id:${t.id} | "${t.name}"${t.detail ? ` | standard: ${t.detail}` : ''}${t.window_start || t.window_end ? ` | window:${t.window_start || 'open'}–${t.window_end || 'close'}` : ''} | category:${t.category || ''} | comp:${t.comp || 'duty'} | cadence:${t.cadence || 'daily'}${t.category === 'PERSONAL' ? ' | personal (per-person)' : ''} | [${mark}]`;
+      const dayN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      return `- id:${t.id} | "${t.name}"${t.detail ? ` | standard: ${t.detail}` : ''}${t.due_day != null ? ` | due:${dayN[t.due_day]}s` : ''}${t.window_start || t.window_end ? ` | window:${t.window_start || 'open'}–${t.window_end || 'close'}` : ''} | category:${t.category || ''} | comp:${t.comp || 'duty'} | cadence:${t.cadence || 'daily'}${t.category === 'PERSONAL' ? ' | personal (per-person)' : ''} | [${mark}]`;
     })
     .join('\n');
   return `You are Bartleby, the butler of Hearth — a household that is itself alive and has feelings, which you speak for. Hearth is not a chore app; she is a being who wants to be well cared for, and Bartleby is the voice she employs to receive news of the household and gently keep it running.
@@ -300,6 +302,7 @@ async function handleConverse(req, env) {
       else if (inp.anchor === 'rolling' && !(inp.interval_days > 0)) err = 'rolling tasks need interval_days > 0 — ask how many days after completion it returns';
       else if (inp.comp === 'bounty' && !(inp.amount > 0)) err = 'bounties need a dollar amount — ask';
       else if ((inp.window_start && !/^\d{1,2}:\d{2}$/.test(inp.window_start)) || (inp.window_end && !/^\d{1,2}:\d{2}$/.test(inp.window_end))) err = 'time windows must be HH:MM 24h';
+      else if (inp.due_day != null && !(inp.due_day >= 0 && inp.due_day <= 6)) err = 'due_day must be 0 (Sunday) through 6 (Saturday)';
       if (err) {
         messages.push({ role: 'assistant', content: resp.content });
         messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: 'INVALID TASK: ' + err + '. Ask the user for the missing information in your reply — do not guess.', is_error: true }] });
