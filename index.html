@@ -53,6 +53,10 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .cadence-label{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:3px;color:var(--accent);margin:20px 16px 0;font-weight:600}
 .section-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--dim);margin:14px 16px 2px}
 .bandnote{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1px;color:var(--dim);margin:6px 16px 2px;padding:7px 12px;background:var(--card2);border-radius:10px;border:1px dashed var(--line)}
+.tierlabel{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--dim);margin:18px 16px 4px;display:flex;align-items:center;gap:10px}
+.tierlabel::after{content:'';flex:1;height:1px;background:var(--line)}
+.nowstrip{margin:6px 16px;border:1.5px solid var(--danger);border-radius:14px;overflow:hidden}
+.nowstrip .task{margin:0;border-radius:0;border-left:none}
 .task{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:8px 16px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
 .task.done{opacity:.55;box-shadow:none;background:var(--card2);border-color:transparent}
 .chk{width:24px;height:24px;min-width:24px;border-radius:8px;border:2px solid var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
@@ -346,9 +350,10 @@ async function logVisit(){
   localStorage.setItem(k,Date.now());
   try{await fetch(SB+'/events',{method:'POST',headers:HDRS,body:JSON.stringify({actor,type:'visit',mission:'house',msg:'opened the app'})})}catch(e){}
 }
+function owedToday(t){return !t.countable&&t.anchor!=='asneeded'&&(((t.cadence||'daily')==='daily')||t.cadence==='once'||!!t.window_end)}
 function checkAllClear(){
   if(tab!=='house'||viewAll)return;
-  const left=visibleTasks('house').filter(t=>!t.bounty&&!t.countable&&t.anchor!=='asneeded').filter(taskVisibleToday).length;
+  const left=visibleTasks('house').filter(t=>!t.bounty&&owedToday(t)).filter(taskVisibleToday).length;
   if(left===0){
     const k='hearth-clear-'+actor+'-'+dayKey(Date.now());
     if(!localStorage.getItem(k)){localStorage.setItem(k,'1');setTimeout(()=>sfx('allclear'),200)}
@@ -472,7 +477,7 @@ function render(){
   const list=today?listAll.filter(taskVisibleToday):listAll;
   const bounties=tab==='house'?visibleTasks('house').filter(t=>t.bounty):[];
   if(actor==='dad'&&tab==='house')html+=`<div class="chiprow" style="margin-top:4px"><div class="qchip" onclick="viewAll=!viewAll;render()">👁 ${viewAll?'SHOWING ALL — TAP FOR TODAY':'TODAY VIEW — TAP FOR ALL'}</div></div>`;
-  if(today&&!list.filter(t=>!t.countable&&t.anchor!=='asneeded').length)html+=`<div class="hearth-greet" style="text-align:center"><div class="hg-line">✨ The house asks nothing more of you today.</div><div class="hg-health">DUTIES SETTLED · SALARY EARNED · REST IS ALSO CARE</div></div>`;
+  if(today&&!list.filter(owedToday).length)html+=`<div class="hearth-greet" style="text-align:center"><div class="hg-line">✨ The house asks nothing more of you today.</div><div class="hg-health">DUTIES SETTLED · SALARY EARNED · REST IS ALSO CARE</div></div>`;
   function taskCard(t){
     if(t.countable){
       const n=countWindow(t);
@@ -521,7 +526,7 @@ function render(){
   const openSum=openBounties.reduce((s,t)=>s+Number(t.bounty),0);
   const payoutsDue=bounties.filter(t=>{const b=bountyState(t);return b.s==='done'&&personalClear(b.by)}).length;
   const salLeft=sal.filter(t=>!t.countable&&!doneState(t)).length;
-  secDefaults={personal:!perDone,salary:perDone&&salLeft>0,asneeded:false,daily:false,weekly:false,periodic:false,
+  secDefaults={personal:!perDone,salary:perDone&&salLeft>0,asneeded:false,upkeep:false,daily:false,weekly:false,periodic:false,
     extras:isAdult(actor)?payoutsDue>0:(personalClear(actor)&&openBounties.length>0)};
   function remaining(ts){return ts.filter(t=>!t.countable&&!doneState(t)).length}
   function section(key,label,ts,body,countStr){
@@ -530,13 +535,34 @@ function render(){
     html+=`<div class="sechead ${open?'open':''} ${key==='extras'?'gold':''}" onclick="toggleSec('${key}')"><span class="chev">▶</span><span class="sl">${label}</span><span class="sc ${rem==='✓'?'clear':''}">${rem}</span></div>`;
     if(open)html+=body;
   }
-  const _sec=section;section=function(k,l,arr,body,cs){if(today&&!arr.length)return;_sec(k,l,arr,body,cs)};
-  section('personal','🛏️ PERSONAL DUTIES',per,`<div class="bandnote">UNPAID · THE HOUSE IS ALL OF OURS — AND THESE UNLOCK ALL PAY</div>`+catGroup(per).replace(/<div class="section-label">.*?<\/div>/,''));
-  if(sal.length)section('salary','💵 SALARY TASKS',sal,`<div class="bandnote">EARNS THE WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS</div>`+catGroup(sal));
-  if(asneed.length)section('asneeded','🔔 AS NEEDED',asneed,`<div class="bandnote">WHEN THE HOUSE CALLS FOR IT — LOG EACH TIME IT HAPPENS</div>`+catGroup(asneed));
-  section('daily','☀️ DAILY DUTIES',daily,`<div class="bandnote">UNPAID HOUSEHOLD DUTIES — EVERYONE'S HOUSE, EVERYONE'S WORK</div>`+catGroup(daily));
-  section('weekly','🗓️ WEEKLY',weekly,catGroup(weekly));
-  section('periodic','📅 MONTHLY & QUARTERLY',periodic,catGroup(periodic));
+  const _sec=section;section=function(k,l,arr,body,cs){if(today&&!arr.length&&k!=='extras')return;_sec(k,l,arr,body,cs)};
+  // ---- urgent hoist: time-sensitive today, undone ----
+  const urgentIds=new Set();
+  const urgent=today?list.filter(t=>t.window_end&&!t.countable&&t.anchor!=='asneeded'&&!doneState(t)):[];
+  urgent.forEach(t=>urgentIds.add(t.id));
+  const perF=per.filter(t=>!urgentIds.has(t.id)),salF=sal.filter(t=>!urgentIds.has(t.id)),dailyF=daily.filter(t=>!urgentIds.has(t.id));
+  const upkeep=[...weekly,...periodic].filter(t=>!urgentIds.has(t.id));
+  // TIER 1 — NOW
+  if(today&&(urgent.length||perF.length||dailyF.length))html+=`<div class="tierlabel">NOW</div>`;
+  if(urgent.length)html+=`<div class="nowstrip">${urgent.map(taskCard).join('')}</div>`;
+  section('personal','🛏️ PERSONAL DUTIES',perF,`<div class="bandnote">UNPAID · THE HOUSE IS ALL OF OURS — AND THESE UNLOCK ALL PAY</div>`+catGroup(perF).replace(/<div class="section-label">.*?<\/div>/,''));
+  section('daily','☀️ DAILY DUTIES',dailyF,`<div class="bandnote">UNPAID HOUSEHOLD DUTIES — EVERYONE'S HOUSE, EVERYONE'S WORK</div>`+catGroup(dailyF));
+  // TIER 2 — EARN
+  if(today&&(salF.length||bounties.length))html+=`<div class="tierlabel">EARN</div>`;
+  if(salF.length)section('salary','💵 SALARY TASKS',salF,`<div class="bandnote">EARNS THE WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS</div>`+catGroup(salF));
+  window._earnTierDone=true;
+  // TIER 3 — WHEN YOU CAN (rendered after bounties, see below)
+  window._whenYouCan=()=>{
+    let h='';
+    const held=html;html='';
+    if(today&&(asneed.length||upkeep.length))html+=`<div class="tierlabel">WHEN YOU CAN</div>`;
+    if(asneed.length){
+      const todayN=asneed.reduce((s,t)=>s+countWindow(t),0);
+      section('asneeded','🔔 AS NEEDED',asneed,`<div class="bandnote">WHEN THE HOUSE CALLS FOR IT — LOG EACH TIME IT HAPPENS</div>`+catGroup(asneed),todayN?todayN+' today':'—');
+    }
+    if(upkeep.length)section('upkeep','🗓 HOUSE UPKEEP',upkeep,`<div class="bandnote">WEEKLY, MONTHLY & QUARTERLY — THE HOUSE'S LONGER MEMORY, NEVER OWED TODAY</div>`+catGroup(upkeep),upkeep.filter(t=>!doneState(t)).length+' open');
+    h=html;html=held;return h;
+  };
   if(bounties.length){
     let unlockCopy='PAID PER JOB — CLAIM IT, DO IT, GET PAID · PERSONAL DUTIES SETTLE FIRST';
     if(!isAdult(actor)){
@@ -562,6 +588,7 @@ function render(){
     if(isAdult(actor)&&payoutsDue)exCount=payoutsDue+' TO PAY · '+exCount;
     section('extras','💰 EXTRAS — EARN',[],bHtml,exCount);
   }
+  html+=window._whenYouCan();
   v.innerHTML=html;
 }
 let ntSel={comp:null,anchor:null};
