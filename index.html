@@ -236,15 +236,20 @@ function windowStart(cad){
 function toMin(s){const p=String(s).split(':');return (+p[0])*60+(+p[1]||0)}
 function fmtHM(s){const m=toMin(s);let h=Math.floor(m/60),mm=m%60;const ap=h>=12?'PM':'AM';h=h%12||12;return h+(mm?':'+String(mm).padStart(2,'0'):'')+' '+ap}
 function todBadge(t){
-  if(!t.window_start&&!t.window_end)return'';
+  const dayNames=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const dayTag=t.due_day!=null&&t.due_day!==''?dayNames[+t.due_day]:null;
+  if(!t.window_start&&!t.window_end&&!dayTag)return'';
   const now=(()=>{const d=new Date();return d.getHours()*60+d.getMinutes()})();
-  const late=t.window_end&&now>toMin(t.window_end)&&!doneState(t);
-  const txt=t.window_start&&t.window_end?fmtHM(t.window_start)+'–'+fmtHM(t.window_end):(t.window_end?'BY '+fmtHM(t.window_end):'FROM '+fmtHM(t.window_start));
+  const isToday=dayTag?+t.due_day===new Date().getDay():true;
+  const late=isToday&&t.window_end&&now>toMin(t.window_end)&&!doneState(t);
+  const tm=t.window_start&&t.window_end?fmtHM(t.window_start)+'–'+fmtHM(t.window_end):(t.window_end?'BY '+fmtHM(t.window_end):t.window_start?'FROM '+fmtHM(t.window_start):null);
+  const txt=[dayTag,tm].filter(Boolean).join(' ');
   return `<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.5px;padding:2px 6px;border-radius:8px;margin-left:6px;white-space:nowrap;${late?'background:var(--danger);color:#fff':'background:var(--card2);color:var(--dim);border:1px solid var(--line)'}">⏰ ${late?'LATE · ':''}${txt}</span>`;
 }
 let viewAll=false;
 function taskVisibleToday(t){
   if(t.bounty)return true;
+  if(t.due_day!=null&&t.due_day!==''&&+t.due_day!==new Date().getDay())return false;
   if(t.window_start){const d=new Date();if(d.getHours()*60+d.getMinutes()<toMin(t.window_start))return false}
   const anchor=t.anchor||(((t.cadence||'daily')==='daily'||(t.cadence||'daily')==='once')?'calendar':'rolling');
   if(anchor==='calendar')return !doneState(t);
@@ -584,6 +589,7 @@ async function ntCreate(btn){
     category:ntSel.comp==='bounty'?'EXTRAS':el('ntCat').value,
     shared:ntSel.comp!=='bounty',countable:ntSel.anchor==='asneeded',
     house:el('ntHouse').value,cadence:ntSel.anchor==='calendar'?el('ntCad').value:(ntSel.anchor==='rolling'?'weekly':'daily'),
+    due_day:ntSel.anchor==='calendar'&&el('ntDay').value!==''?+el('ntDay').value:null,
     audience:'all',sort:ntSel.comp==='bounty'?250:200,comp:ntSel.comp,anchor:ntSel.anchor,
     interval_days:ntSel.anchor==='rolling'?+el('ntInt').value:null,
     window_start:el('ntWs').value||null,window_end:el('ntWe').value||null,
@@ -614,7 +620,8 @@ function renderAdmin(v){
     <div class="chiprow" style="margin:0 0 6px" id="ntCompRow">${['duty','salary','bounty'].map(c=>`<div class="qchip" data-v="${c}" onclick="ntPick('comp','${c}')">${c.toUpperCase()}</div>`).join('')}</div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--dim);margin:4px 0 3px">WHAT MAKES IT DUE</div>
     <div class="chiprow" style="margin:0 0 6px" id="ntAnchorRow">${[['calendar','ON A SCHEDULE'],['rolling','AFTER LAST DONE'],['asneeded','AS NEEDED']].map(([v,l])=>`<div class="qchip" data-v="${v}" onclick="ntPick('anchor','${v}')">${l}</div>`).join('')}</div>
-    <div id="ntCadWrap" style="display:none"><select id="ntCad" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);margin-bottom:8px"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="once">Once</option></select></div>
+    <div id="ntCadWrap" style="display:none"><select id="ntCad" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);margin-bottom:8px"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="once">Once</option></select>
+    <select id="ntDay" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);margin-bottom:8px"><option value="">Any day</option><option value="1">Mondays</option><option value="2">Tuesdays</option><option value="3">Wednesdays</option><option value="4">Thursdays</option><option value="5">Fridays</option><option value="6">Saturdays</option><option value="0">Sundays</option></select></div>
     <div id="ntIntWrap" style="display:none"><input id="ntInt" type="number" placeholder="Returns after how many days?" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);margin-bottom:8px"></div>
     <div id="ntAmtWrap" style="display:none"><input id="ntAmt" type="number" placeholder="Bounty $ amount" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);margin-bottom:8px"></div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -1104,6 +1111,7 @@ async function confirmProposal(btn){
       mission:'house',name:tk.name,detail:tk.detail||null,category:tk.comp==='bounty'?'EXTRAS':(tk.category||'HOUSE'),
       shared:tk.comp!=='bounty',countable:tk.anchor==='asneeded'?true:!!tk.countable,
       house:tk.house||'both',cadence:tk.anchor==='calendar'?(tk.cadence||'daily'):(tk.anchor==='rolling'?'weekly':'daily'),
+      due_day:tk.anchor==='calendar'&&tk.due_day!=null?tk.due_day:null,
       audience:tk.audience||'all',sort:tk.comp==='bounty'?250:200,comp:tk.comp,anchor:tk.anchor,
       interval_days:tk.anchor==='rolling'?tk.interval_days:null,window_start:tk.window_start||null,window_end:tk.window_end||null,
       bounty:tk.comp==='bounty'?tk.amount:null,requires_training:!!tk.requires_training};
