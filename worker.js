@@ -79,6 +79,7 @@ const TOOLS = [
         anchor: { type: 'string', enum: ['calendar', 'rolling', 'asneeded'] },
         cadence: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'quarterly', 'once'], description: 'Required when anchor=calendar.' },
         due_day: { type: 'number', description: 'Optional, calendar tasks only: day of week the task is due (0=Sunday .. 6=Saturday), e.g. trash night. Task appears only on that day.' },
+        lead_hours: { type: 'number', description: 'Optional with due_day: task becomes visible this many hours before its deadline, e.g. 14 makes a Monday-8AM task appear Sunday 6PM.' },
         interval_days: { type: 'number', description: 'Required when anchor=rolling: reappears N days after completion.' },
         window_start: { type: 'string', description: 'Optional HH:MM 24h — task hidden before this time.' },
         window_end: { type: 'string', description: 'Optional HH:MM 24h — running late after this time.' },
