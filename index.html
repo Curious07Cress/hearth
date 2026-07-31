@@ -253,7 +253,17 @@ function todBadge(t){
 let viewAll=false;
 function taskVisibleToday(t){
   if(t.bounty)return true;
-  if(t.due_day!=null&&t.due_day!==''&&+t.due_day!==new Date().getDay())return false;
+  if(t.due_day!=null&&t.due_day!==''){
+    const d=new Date(),dow=d.getDay(),nowMin=d.getHours()*60+d.getMinutes();
+    if(dow!==+t.due_day){
+      // not the day itself — visible only within lead_hours before the deadline
+      const prev=(+t.due_day+6)%7;
+      if(!(t.lead_hours>0)||dow!==prev)return false;
+      const deadlineMin=t.window_end?toMin(t.window_end):0; // deadline time on due_day
+      const leadIntoPrev=t.lead_hours*60-deadlineMin;       // minutes of lead falling on the prior day
+      if(leadIntoPrev<=0||nowMin<24*60-leadIntoPrev)return false;
+    }
+  }
   if(t.window_start){const d=new Date();if(d.getHours()*60+d.getMinutes()<toMin(t.window_start))return false}
   const anchor=t.anchor||(((t.cadence||'daily')==='daily'||(t.cadence||'daily')==='once')?'calendar':'rolling');
   if(anchor==='calendar')return !doneState(t);
@@ -1139,6 +1149,7 @@ async function confirmProposal(btn){
       shared:tk.comp!=='bounty',countable:tk.anchor==='asneeded'?true:!!tk.countable,
       house:tk.house||'both',cadence:tk.anchor==='calendar'?(tk.cadence||'daily'):(tk.anchor==='rolling'?'weekly':'daily'),
       due_day:tk.anchor==='calendar'&&tk.due_day!=null?tk.due_day:null,
+      lead_hours:tk.lead_hours||null,
       audience:tk.audience||'all',sort:tk.comp==='bounty'?250:200,comp:tk.comp,anchor:tk.anchor,
       interval_days:tk.anchor==='rolling'?tk.interval_days:null,window_start:tk.window_start||null,window_end:tk.window_end||null,
       bounty:tk.comp==='bounty'?tk.amount:null,requires_training:!!tk.requires_training};
