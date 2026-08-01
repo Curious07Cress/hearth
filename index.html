@@ -536,7 +536,7 @@ function render(){
   const openSum=openBounties.reduce((s,t)=>s+Number(t.bounty),0);
   const payoutsDue=bounties.filter(t=>{const b=bountyState(t);return b.s==='done'&&personalClear(b.by)}).length;
   const salLeft=sal.filter(t=>!t.countable&&!doneState(t)).length;
-  secDefaults={personal:!perDone,salary:perDone&&salLeft>0,asneeded:false,upkeep:false,daily:false,weekly:false,periodic:false,
+  secDefaults={personal:!perDone,salary:perDone&&salLeft>0,rest:false,asneeded:false,upkeep:false,daily:false,weekly:false,periodic:false,
     extras:isAdult(actor)?payoutsDue>0:(personalClear(actor)&&openBounties.length>0)};
   function remaining(ts){return ts.filter(t=>!t.countable&&!doneState(t)).length}
   function section(key,label,ts,body,countStr){
@@ -552,25 +552,23 @@ function render(){
   urgent.forEach(t=>urgentIds.add(t.id));
   const perF=per.filter(t=>!urgentIds.has(t.id)),salF=sal.filter(t=>!urgentIds.has(t.id)),dailyF=daily.filter(t=>!urgentIds.has(t.id));
   const upkeep=[...weekly,...periodic].filter(t=>!urgentIds.has(t.id));
-  // TIER 1 — NOW
-  if(today&&(urgent.length||perF.length||dailyF.length))html+=`<div class="tierlabel">NOW</div>`;
+  const salAsneed=asneed.filter(t=>t.comp==='salary'),restAsneed=asneed.filter(t=>t.comp!=='salary');
+  // 1) NOW strip — deadline items interrupt everything
   if(urgent.length)html+=`<div class="nowstrip">${urgent.map(taskCard).join('')}</div>`;
+  // 2) PERSONAL — first and obvious
   section('personal','🛏️ PERSONAL DUTIES',perF,`<div class="bandnote">UNPAID · THE HOUSE IS ALL OF OURS — AND THESE UNLOCK ALL PAY</div>`+catGroup(perF).replace(/<div class="section-label">.*?<\/div>/,''));
-  section('daily','☀️ DAILY DUTIES',dailyF,`<div class="bandnote">UNPAID HOUSEHOLD DUTIES — EVERYONE'S HOUSE, EVERYONE'S WORK</div>`+catGroup(dailyF));
-  // TIER 2 — EARN
-  if(today&&(salF.length||bounties.length))html+=`<div class="tierlabel">EARN</div>`;
-  if(salF.length)section('salary','💵 SALARY TASKS',salF,`<div class="bandnote">EARNS THE WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS</div>`+catGroup(salF));
-  window._earnTierDone=true;
-  // TIER 3 — WHEN YOU CAN (rendered after bounties, see below)
+  // 3) ALLOWANCE — today's salary work, scheduled + as-needed
+  const salAll=[...salF,...salAsneed];
+  const salLeftN=salF.filter(t=>!t.countable&&!doneState(t)).length;
+  if(salAll.length)section('salary','💵 ALLOWANCE TASKS — TODAY',salAll,`<div class="bandnote">EARNS THE $40 WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS · 🔔 = WHENEVER NEEDED</div>`+catGroup(salAll),salLeftN?salLeftN+' left':'✓');
+  // 4) EXTRAS (bounties) render next via the block below; 5) THE REST after them
   window._whenYouCan=()=>{
-    let h='';
-    const held=html;html='';
-    if(today&&(asneed.length||upkeep.length))html+=`<div class="tierlabel">WHEN YOU CAN</div>`;
-    if(asneed.length){
-      const todayN=asneed.reduce((s,t)=>s+countWindow(t),0);
-      section('asneeded','🔔 AS NEEDED',asneed,`<div class="bandnote">WHEN THE HOUSE CALLS FOR IT — LOG EACH TIME IT HAPPENS</div>`+catGroup(asneed),todayN?todayN+' today':'—');
+    let h='';const held=html;html='';
+    const rest=[...dailyF,...restAsneed,...upkeep];
+    if(rest.length){
+      const openN=rest.filter(t=>!t.countable&&!doneState(t)).length;
+      section('rest','🗓 THE REST OF THE HOUSE',rest,`<div class="bandnote">SHARED DAILIES · AS-NEEDED · LONGER-CYCLE UPKEEP — NEVER OWED ALL AT ONCE</div>`+catGroup(rest),openN?openN+' open':'✓');
     }
-    if(upkeep.length)section('upkeep','🗓 HOUSE UPKEEP',upkeep,`<div class="bandnote">WEEKLY, MONTHLY & QUARTERLY — THE HOUSE'S LONGER MEMORY, NEVER OWED TODAY</div>`+catGroup(upkeep),upkeep.filter(t=>!doneState(t)).length+' open');
     h=html;html=held;return h;
   };
   if(bounties.length){
