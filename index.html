@@ -353,6 +353,14 @@ async function toggle(id,elBtn){
     await post({actor,task_id:id,type:'reopen',mission:t.mission,msg:`reopened "${t.name}"`});
   }
 }
+// ---- diagnostics: client errors land in the ledger as diag events (throttled) ----
+let _diagN=0;
+function logDiag(msg){
+  if(_diagN>=3)return;_diagN++;
+  try{fetch(SB+'/events',{method:'POST',headers:HDRS,body:JSON.stringify({actor:actor||'unknown',type:'diag',mission:'house',msg:String(msg).slice(0,300)})})}catch(e){}
+}
+window.addEventListener('error',e=>logDiag('js: '+e.message+' @'+(e.filename||'').split('/').pop()+':'+e.lineno));
+window.addEventListener('unhandledrejection',e=>logDiag('promise: '+String(e.reason).slice(0,200)));
 async function logVisit(){
   if(!actor)return;
   const k='hearth-visit-'+actor,last=+localStorage.getItem(k)||0;
@@ -444,7 +452,8 @@ function periodRange(){
   const s=new Date(now);s.setFullYear(s.getFullYear()-1);s.setHours(0,0,0,0);return[s.getTime(),now.getTime()];
 }
 const BOUNTY_IDS=()=>new Set(tasks.filter(t=>t.bounty).map(t=>t.id));
-const CONVO_TYPES=['utterance','proposal','confirmation','rejection','visit'];
+const CONVO_TYPES=['utterance','proposal','confirmation','rejection','visit','diag','setting'];
+function allowanceAmt(){const e=events.find(e=>e.type==='setting'&&e.msg==='allowance');return e&&e.qty>0?e.qty:40}
 function houseEvents(from,to){const bids=BOUNTY_IDS();return events.filter(e=>e.type!=='agent_msg'&&e.type!=='claim'&&e.type!=='payout'&&e.type!=='claim_request'&&e.type!=='allowance'&&e.type!=='admin'&&e.type!=='note'&&!CONVO_TYPES.includes(e.type)&&e.mission==='house'&&!bids.has(e.task_id)&&e.t>=from&&e.t<=to)}
 function tally(aid,from,to){
   const ev=houseEvents(from,to).filter(e=>e.actor===aid);
@@ -475,7 +484,7 @@ function render(){
   if(!tasks.length){v.innerHTML='<div class="empty">'+(syncOK?'Loading the ledger…':'Cannot reach the ledger. Check connection.')+'</div>';return}
   if(tab==='ledger'){
     v.innerHTML=`<div class="section-label" style="margin-top:16px">SHARED EVENT STREAM — ALL DEVICES</div><div class="ledger">`+
-      (events.length?events.filter(e=>e.type!=='visit').slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.type==='note'?'📝 '+e.msg:CONVO_TYPES.includes(e.type)?'💬 '+e.msg:(e.msg||e.type)}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
+      (events.length?events.filter(e=>e.type!=='visit'&&e.type!=='diag'&&e.type!=='setting').slice(0,150).map(e=>`<div class="evt ${e.type==='agent_msg'?'agent':''}"><span class="who">${actorName(e.actor).toUpperCase()}</span> ${e.type==='note'?'📝 '+e.msg:CONVO_TYPES.includes(e.type)?'💬 '+e.msg:(e.msg||e.type)}<br><span class="time">${fmt(e.t)}</span></div>`).join(''):'<div class="empty">No events yet.</div>')+`</div>`;
     return;
   }
   if(tab==='report'){renderReport(v);return}
@@ -560,7 +569,7 @@ function render(){
   // 3) ALLOWANCE — today's salary work, scheduled + as-needed
   const salAll=[...salF,...salAsneed];
   const salLeftN=salF.filter(t=>!t.countable&&!doneState(t)).length;
-  if(salAll.length)section('salary','💵 ALLOWANCE TASKS — TODAY',salAll,`<div class="bandnote">EARNS THE $40 WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS · 🔔 = WHENEVER NEEDED</div>`+catGroup(salAll),salLeftN?salLeftN+' left':'✓');
+  if(salAll.length)section('salary','💵 ALLOWANCE TASKS — TODAY',salAll,`<div class="bandnote">EARNS THE $${allowanceAmt()} WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS · 🔔 = WHENEVER NEEDED</div>`+catGroup(salAll),salLeftN?salLeftN+' left':'✓');
   // 4) EXTRAS (bounties) render next via the block below; 5) THE REST after them
   window._whenYouCan=()=>{
     let h='';const held=html;html='';
@@ -635,6 +644,13 @@ async function ntCreate(btn){
     await post({actor,type:'admin',mission:'house',msg:`admin: created task "${name}" (${ntSel.comp}/${ntSel.anchor})`});
     sfx('confirm');ntSel={comp:null,anchor:null};
   }catch(e){err.textContent='Failed: '+String(e.message).slice(0,140);btn.disabled=false}
+}
+async function setAllowance(btn){
+  const v=+el('allowAmt').value;
+  if(!(v>0))return;
+  btn.disabled=true;
+  await post({actor,type:'setting',mission:'house',msg:'allowance',qty:v});
+  sfx('confirm');
 }
 function renderAdmin(v){
   const kids=ACTORS.filter(a=>a.h&&!a.adult);
@@ -773,10 +789,15 @@ function renderReport(v){
     });
     html+=`</table>`;
     // allowance: 6-of-7 days with all personal dailies done
-    const ALLOWANCE=40;
+    const ALLOWANCE=allowanceAmt();
     const salTasks=tasks.filter(t=>t.comp==='salary');
     const salaryMode=salTasks.length>0;
-    html+=`<div class="section-label">WEEKLY ALLOWANCE — $${ALLOWANCE} · ${salaryMode?'ON SALARY TASKS':'PERSONAL DAILIES'} 6 OF 7 DAYS</div><table class="board"><tr><th>KID</th><th style="text-align:right">DAYS KEPT</th><th style="text-align:right">STATUS</th><th></th></tr>`;
+    html+=`<div class="section-label">WEEKLY ALLOWANCE — $${ALLOWANCE} · ${salaryMode?'ON SALARY TASKS':'PERSONAL DAILIES'} 6 OF 7 DAYS</div>
+    <div style="display:flex;gap:8px;margin:4px 16px 8px;align-items:center">
+      <input id="allowAmt" type="number" value="${ALLOWANCE}" style="width:90px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);font-family:'IBM Plex Mono',monospace">
+      <button onclick="setAllowance(this)" style="padding:8px 16px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer">SET WEEKLY $</button>
+    </div>
+    <table class="board"><tr><th>KID</th><th style="text-align:right">DAYS KEPT</th><th style="text-align:right">STATUS</th><th></th></tr>`;
     const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
     kids.forEach(k=>{
       let kept=0;
