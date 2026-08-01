@@ -99,7 +99,12 @@ body.york .task.bounty{background:#fbf7e8}
 .badge{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;color:#c9962e;background:#fff;border:1.5px solid #ecd9a8;border-radius:10px;padding:4px 9px;white-space:nowrap}
 .claimbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#c9962e;background:#fff;border:1.5px solid #c9962e;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600}
 .gold{color:#c9962e;font-weight:600}
-.sechead{display:flex;align-items:center;gap:10px;margin:14px 16px 4px;padding:12px 14px;background:var(--card2);border:1px solid var(--line);border-radius:14px;cursor:pointer}
+.sechead{display:flex;align-items:center;gap:10px;margin:14px 16px 4px;padding:12px 14px;background:var(--card2);border:1px solid var(--line);border-radius:14px;cursor:pointer;border-left-width:4px}
+.sechead.tint-personal{border-left-color:var(--warn);background:color-mix(in srgb,var(--warn) 7%,var(--card2))}
+.sechead.tint-salary{border-left-color:var(--ok);background:color-mix(in srgb,var(--ok) 8%,var(--card2))}
+.sechead.tint-salary .sl{color:var(--ok)}
+.sechead.tint-rest{border-left-color:var(--line);opacity:.62}
+.nowhead{display:flex;align-items:center;gap:8px;background:var(--danger);color:#fff;padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;font-weight:700}
 .sechead .sl{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--accent);font-weight:600;flex:1}
 .sechead .sc{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);font-weight:600}
 .sechead .sc.clear{color:var(--ok)}
@@ -551,7 +556,8 @@ function render(){
   function section(key,label,ts,body,countStr){
     const open=secOpen(key);
     const rem=countStr!==undefined?countStr:(remaining(ts)?remaining(ts)+' left':'✓');
-    html+=`<div class="sechead ${open?'open':''} ${key==='extras'?'gold':''}" onclick="toggleSec('${key}')"><span class="chev">▶</span><span class="sl">${label}</span><span class="sc ${rem==='✓'?'clear':''}">${rem}</span></div>`;
+    const tint=key==='personal'?'tint-personal':key==='salary'?'tint-salary':key==='rest'?'tint-rest':'';
+    html+=`<div class="sechead ${open?'open':''} ${key==='extras'?'gold':''} ${tint}" onclick="toggleSec('${key}')"><span class="chev">▶</span><span class="sl">${label}</span><span class="sc ${rem==='✓'?'clear':''}">${rem}</span></div>`;
     if(open)html+=body;
   }
   const _sec=section;section=function(k,l,arr,body,cs){if(today&&!arr.length&&k!=='extras')return;_sec(k,l,arr,body,cs)};
@@ -563,7 +569,7 @@ function render(){
   const upkeep=[...weekly,...periodic].filter(t=>!urgentIds.has(t.id));
   const salAsneed=asneed.filter(t=>t.comp==='salary'),restAsneed=asneed.filter(t=>t.comp!=='salary');
   // 1) NOW strip — deadline items interrupt everything
-  if(urgent.length)html+=`<div class="nowstrip">${urgent.map(taskCard).join('')}</div>`;
+  if(urgent.length)html+=`<div class="nowstrip"><div class="nowhead">⚡ NEEDED RIGHT NOW</div>${urgent.map(taskCard).join('')}</div>`;
   // 2) PERSONAL — first and obvious
   section('personal','🛏️ PERSONAL DUTIES',perF,`<div class="bandnote">UNPAID · THE HOUSE IS ALL OF OURS — AND THESE UNLOCK ALL PAY</div>`+catGroup(perF).replace(/<div class="section-label">.*?<\/div>/,''));
   // 3) ALLOWANCE — today's salary work, scheduled + as-needed
