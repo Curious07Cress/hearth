@@ -252,6 +252,7 @@ function windowStart(cad){
 }
 function toMin(s){const p=String(s).split(':');return (+p[0])*60+(+p[1]||0)}
 function fmtHM(s){const m=toMin(s);let h=Math.floor(m/60),mm=m%60;const ap=h>=12?'PM':'AM';h=h%12||12;return h+(mm?':'+String(mm).padStart(2,'0'):'')+' '+ap}
+function preWindow(t){if(!t.window_start)return false;const d=new Date();return d.getHours()*60+d.getMinutes()<toMin(t.window_start)}
 function todBadge(t){
   const dayNames=['SUN','MON','TUE','WED','THU','FRI','SAT'];
   const dayTag=t.due_day!=null&&t.due_day!==''?dayNames[+t.due_day]:null;
@@ -259,7 +260,8 @@ function todBadge(t){
   const now=(()=>{const d=new Date();return d.getHours()*60+d.getMinutes()})();
   const isToday=dayTag?+t.due_day===new Date().getDay():true;
   const late=isToday&&t.window_end&&now>toMin(t.window_end)&&!doneState(t);
-  const tm=t.window_start&&t.window_end?fmtHM(t.window_start)+'–'+fmtHM(t.window_end):(t.window_end?'BY '+fmtHM(t.window_end):t.window_start?'FROM '+fmtHM(t.window_start):null);
+  const pre=preWindow(t);
+  const tm=pre?'USUALLY '+fmtHM(t.window_start):(t.window_start&&t.window_end?fmtHM(t.window_start)+'–'+fmtHM(t.window_end):(t.window_end?'BY '+fmtHM(t.window_end):t.window_start?'FROM '+fmtHM(t.window_start):null));
   const txt=[dayTag,tm].filter(Boolean).join(' ');
   return `<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.5px;padding:2px 6px;border-radius:8px;margin-left:6px;white-space:nowrap;${late?'background:var(--danger);color:#fff':'background:var(--card2);color:var(--dim);border:1px solid var(--line)'}">⏰ ${late?'LATE · ':''}${txt}</span>`;
 }
@@ -277,7 +279,7 @@ function taskVisibleToday(t){
       if(leadIntoPrev<=0||nowMin<24*60-leadIntoPrev)return false;
     }
   }
-  if(t.window_start){const d=new Date();if(d.getHours()*60+d.getMinutes()<toMin(t.window_start))return false}
+  // pre-window tasks stay visible (dimmed in taskCard) — the window is rhythm, not a lock
   const anchor=t.anchor||(((t.cadence||'daily')==='daily'||(t.cadence||'daily')==='once')?'calendar':'rolling');
   if(anchor==='calendar')return !doneState(t);
   // rolling: reappears interval_days after last completion
@@ -528,7 +530,7 @@ function render(){
       const note=events.find(e=>e.task_id===t.id&&e.type==='note'&&e.t>=ws);
       if(note)attr+=`<br>📝 ${note.msg} <span style="opacity:.7">— ${actorName(note.actor)}</span>`;
     }
-    return `<div class="task ${done?'done':''}">
+    return `<div class="task ${done?'done':''}"${preWindow(t)&&!done?' style="opacity:.5"':''}>
       <div class="chk" ${mine?`onclick="toggle('${t.id}',this)"`:'style="opacity:.3"'}>${done?'✓':''}</div>
       <div style="flex:1"><div class="tname">${t.name}${todBadge(t)}</div>${t.detail?`<div class="tmeta" style="opacity:.75">${t.detail}</div>`:''}
       <div class="tmeta">${done?`<span class="attr">${attr}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
