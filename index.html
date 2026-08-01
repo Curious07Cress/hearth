@@ -189,8 +189,16 @@ const BART={done:["Noted. The house is fractionally more civilized for it.","I s
 let tasks=[],events=[],actor=localStorage.getItem('hearth-actor')||null;
 let house=localStorage.getItem('hearth-house')||'westford';
 let tab='hearth',period='WEEK',dayOffset=0,syncOK=true;
-let secOverrides=JSON.parse(localStorage.getItem('hearth-collapse')||'{}');
-function toggleSec(k){const cur=secOpen(k);secOverrides[k]=!cur;localStorage.setItem('hearth-collapse',JSON.stringify(secOverrides));render()}
+let secOverrides=(()=>{
+  try{
+    const s=JSON.parse(localStorage.getItem('hearth-collapse')||'{}');
+    const today=new Date().toDateString();
+    if(s._day===today)return s.map||{};
+    localStorage.setItem('hearth-collapse',JSON.stringify({_day:today,map:{}}));
+    return {};
+  }catch(e){return {}}
+})();
+function toggleSec(k){const cur=secOpen(k);secOverrides[k]=!cur;localStorage.setItem('hearth-collapse',JSON.stringify({_day:new Date().toDateString(),map:secOverrides}));render()}
 let secDefaults={};
 function secOpen(k){return k in secOverrides?secOverrides[k]:(secDefaults[k]||false)}
 const INITIALS={dad:'E',mom:'C',k1:'S',k2:'Em'};
