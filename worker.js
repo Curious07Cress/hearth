@@ -330,7 +330,15 @@ async function handleConverse(req, env) {
     break;
   }
 
-  return jsonResponse({ transcript: userText, reply: finalText || '...', proposal });
+  const out = { transcript: userText, reply: finalText || '...', proposal };
+  // Refinement telemetry: conversation as first-class ledger events (fire-and-forget)
+  try {
+    const tel = [{ actor, type: 'utterance', mission: 'house', msg: String(userText).slice(0, 300) }];
+    if (proposal) tel.push({ actor: 'bartleby', type: 'proposal', mission: 'house', msg: String(proposal.summary || '').slice(0, 300) });
+    else tel.push({ actor: 'bartleby', type: 'utterance', mission: 'house', msg: String(finalText).slice(0, 300) });
+    await fetch(SB + '/events', { method: 'POST', headers: SBHDRS, body: JSON.stringify(tel) });
+  } catch (e) {}
+  return jsonResponse(out);
 }
 
 async function handleDispatch(req, env) {
