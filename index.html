@@ -269,11 +269,11 @@ let viewAll=false;
 function salaryWeekDots(kidId){
   const salT=tasks.filter(t=>t.comp==='salary');
   if(!salT.length)return'';
-  const mon=windowStart('weekly');
-  const todayIdx=Math.floor((Date.now()-mon.getTime())/86400000);
+  const monMs=windowStart('weekly');
+  const todayIdx=Math.floor((Date.now()-monMs)/86400000);
   let earned=0,dots='';
   for(let i=0;i<7;i++){
-    const d=new Date(mon.getTime()+i*86400000),dk=dayKey(d.getTime());
+    const dk=dayKey(monMs+i*86400000);
     const hit=salT.some(t=>events.some(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='count')&&e.actor===kidId&&dayKey(e.t)===dk));
     if(hit)earned++;
     const future=i>todayIdx;
@@ -502,6 +502,13 @@ function streak(aid){
   return n;
 }
 function render(){
+  try{renderInner()}catch(e){
+    logDiag('render crash ['+tab+']: '+String(e.message||e).slice(0,200));
+    const v=el('view');
+    if(v)v.innerHTML='<div class="empty">Something went sideways drawing this tab. The house has filed a report.<br><span style="font-family:IBM Plex Mono,monospace;font-size:10px;color:var(--dim)">'+String(e.message||e).slice(0,120)+'</span></div>';
+  }
+}
+function renderInner(){
   el('housestrip').innerHTML=Object.keys(HOUSES)
     .filter(h=>h!=='york'||yorkSeason())
     .map(h=>`<div class="hbtn ${house===h?'on':''}" onclick="setHouse('${h}')">${HOUSES[h].label}</div>`).join('');
@@ -834,9 +841,9 @@ function renderReport(v){
     const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
     kids.forEach(k=>{
       let kept=0;
-      const mon=windowStart('weekly');
-      const todayIdx=Math.floor((Date.now()-mon.getTime())/86400000);
-      for(let i=0;i<=todayIdx&&i<7;i++){const dk=dayKey(mon.getTime()+i*86400000);
+      const monMs=windowStart('weekly');
+      const todayIdx=Math.floor((Date.now()-monMs)/86400000);
+      for(let i=0;i<=todayIdx&&i<7;i++){const dk=dayKey(monMs+i*86400000);
         if(salaryMode){if(salTasks.some(t=>events.some(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='count')&&e.actor===k.id&&dayKey(e.t)===dk)))kept++;}
         else if(per.every(t=>events.some(e=>e.task_id===t.id&&e.type==='complete'&&e.actor===k.id&&dayKey(e.t)===dk)))kept++;}
       const eligible=kept>=6;
