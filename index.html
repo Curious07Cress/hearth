@@ -266,6 +266,23 @@ function todBadge(t){
   return `<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.5px;padding:2px 6px;border-radius:8px;margin-left:6px;white-space:nowrap;${late?'background:var(--danger);color:#fff':'background:var(--card2);color:var(--dim);border:1px solid var(--line)'}">⏰ ${late?'LATE · ':''}${txt}</span>`;
 }
 let viewAll=false;
+function salaryWeekDots(kidId){
+  const salT=tasks.filter(t=>t.comp==='salary');
+  if(!salT.length)return'';
+  const mon=windowStart('weekly');
+  const todayIdx=Math.floor((Date.now()-mon.getTime())/86400000);
+  let earned=0,dots='';
+  for(let i=0;i<7;i++){
+    const d=new Date(mon.getTime()+i*86400000),dk=dayKey(d.getTime());
+    const hit=salT.some(t=>events.some(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='count')&&e.actor===kidId&&dayKey(e.t)===dk));
+    if(hit)earned++;
+    const future=i>todayIdx;
+    dots+=`<span style="display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;${hit?'background:var(--ok)':future?'border:1.5px dashed var(--line)':'border:1.5px solid var(--dim);opacity:.5'}"></span>`;
+  }
+  const daysLeft=7-todayIdx-(salT.some(t=>events.some(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='count')&&e.actor===kidId&&dayKey(e.t)===dayKey(Date.now())))?1:0);
+  const status=earned>=6?'EARNED ✓':(earned+Math.max(0,daysLeft)>=6?'ON TRACK':'AT RISK');
+  return `<div style="display:flex;align-items:center;justify-content:space-between;margin:8px 16px 2px;padding:9px 13px;background:var(--card);border:1px solid var(--line);border-radius:12px"><span>${dots}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:${status==='AT RISK'?'var(--danger)':'var(--ok)'};font-weight:600">${earned} OF 6 — ${status}</span></div>`;
+}
 function taskVisibleToday(t){
   if(t.bounty)return true;
   if(t.due_day!=null&&t.due_day!==''){
@@ -585,7 +602,7 @@ function render(){
   // 3) ALLOWANCE — today's salary work, scheduled + as-needed
   const salAll=[...salF,...salAsneed];
   const salLeftN=salF.filter(t=>!t.countable&&!doneState(t)).length;
-  if(salAll.length)section('salary','💵 ALLOWANCE TASKS — TODAY',salAll,`<div class="bandnote">EARNS THE $${allowanceAmt()} WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS · 🔔 = WHENEVER NEEDED</div>`+catGroup(salAll),salLeftN?salLeftN+' left':'✓');
+  if(salAll.length)section('salary','💵 ALLOWANCE TASKS — TODAY',salAll,(actor&&!isAdult(actor)?salaryWeekDots(actor):'')+`<div class="bandnote">EARNS THE $${allowanceAmt()} WEEKLY ALLOWANCE — BE ON THESE 6 OF 7 DAYS · 🔔 = WHENEVER NEEDED</div>`+catGroup(salAll),salLeftN?salLeftN+' left':'✓');
   // 4) EXTRAS (bounties) render next via the block below; 5) THE REST after them
   window._whenYouCan=()=>{
     let h='';const held=html;html='';
@@ -817,7 +834,9 @@ function renderReport(v){
     const per=tasks.filter(t=>t.category==='PERSONAL'&&(t.cadence||'daily')==='daily');
     kids.forEach(k=>{
       let kept=0;
-      for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const dk=dayKey(d.getTime());
+      const mon=windowStart('weekly');
+      const todayIdx=Math.floor((Date.now()-mon.getTime())/86400000);
+      for(let i=0;i<=todayIdx&&i<7;i++){const dk=dayKey(mon.getTime()+i*86400000);
         if(salaryMode){if(salTasks.some(t=>events.some(e=>e.task_id===t.id&&(e.type==='complete'||e.type==='count')&&e.actor===k.id&&dayKey(e.t)===dk)))kept++;}
         else if(per.every(t=>events.some(e=>e.task_id===t.id&&e.type==='complete'&&e.actor===k.id&&dayKey(e.t)===dk)))kept++;}
       const eligible=kept>=6;
