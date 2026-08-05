@@ -283,6 +283,30 @@ function salaryWeekDots(kidId){
   const status=earned>=6?'EARNED ✓':(earned+Math.max(0,daysLeft)>=6?'ON TRACK':'AT RISK');
   return `<div style="display:flex;align-items:center;justify-content:space-between;margin:8px 16px 2px;padding:9px 13px;background:var(--card);border:1px solid var(--line);border-radius:12px"><span>${dots}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:${status==='AT RISK'?'var(--danger)':'var(--ok)'};font-weight:600">${earned} OF 6 — ${status}</span></div>`;
 }
+// ---- macro tasks: guided step checklists (steps jsonb on task) ----
+function stepState(tid){
+  try{const s=JSON.parse(localStorage.getItem('hearth-steps-'+tid)||'{}');return s.day===dayKey(Date.now())?(s.done||[]):[]}catch(e){return[]}
+}
+function tapStep(tid,i,elBtn){
+  const t=tasks.find(x=>x.id===tid);if(!t||!t.steps)return;
+  let done=stepState(tid);
+  if(done.includes(i))done=done.filter(x=>x!==i);else{done.push(i);sfx('pop')}
+  localStorage.setItem('hearth-steps-'+tid,JSON.stringify({day:dayKey(Date.now()),done}));
+  if(done.length>=t.steps.length){
+    const chk=elBtn.closest('.task').querySelector('.chk');
+    setTimeout(()=>toggle(tid,chk||elBtn),250);
+  }else render();
+}
+function stepsHtml(t){
+  if(!t.steps||!Array.isArray(t.steps))return'';
+  const done=stepState(t.id);
+  return `<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${t.steps.map((s,i)=>{
+    const d=done.includes(i);
+    return `<div onclick="event.stopPropagation();tapStep('${t.id}',${i},this)" style="display:flex;gap:9px;align-items:flex-start;cursor:pointer;${d?'opacity:.45':''}">
+      <span style="min-width:17px;height:17px;border-radius:5px;border:1.5px solid ${d?'var(--ok)':'var(--dim)'};background:${d?'var(--ok)':'transparent'};color:#fff;font-size:11px;line-height:17px;text-align:center;margin-top:1px">${d?'✓':''}</span>
+      <span style="font-size:12.5px;line-height:1.45;${d?'text-decoration:line-through':''}">${s}</span></div>`;
+  }).join('')}</div>`;
+}
 function taskVisibleToday(t){
   if(t.bounty)return true;
   if(t.due_day!=null&&t.due_day!==''){
@@ -556,7 +580,7 @@ function renderInner(){
     }
     return `<div class="task ${done?'done':''}"${preWindow(t)&&!done?' style="opacity:.5"':''}>
       <div class="chk" ${mine?`onclick="toggle('${t.id}',this)"`:'style="opacity:.3"'}>${done?'✓':''}</div>
-      <div style="flex:1"><div class="tname">${t.name}${todBadge(t)}</div>${t.detail?`<div class="tmeta" style="opacity:.75">${t.detail}</div>`:''}
+      <div style="flex:1"><div class="tname">${t.name}${todBadge(t)}</div>${t.detail?`<div class="tmeta" style="opacity:.75">${t.detail}</div>`:''}${t.steps&&!done?stepsHtml(t):''}
       <div class="tmeta">${done?`<span class="attr">${attr}</span>`:t.blocked_on?`<span class="blocked-tag">⛔ BLOCKED ON ${actorName(t.blocked_on).toUpperCase()}</span>`:t.assigned_to?`${actorName(t.assigned_to)}'s task`:t.agent?`assigned: ${actorName(t.agent)}`:''}</div></div>
       ${done?`<button class="claimbtn" style="color:var(--dim);border-color:var(--line)" onclick="addNote('${t.id}')">✎</button>`:''}
       ${done&&t.shared?`<button class="claimbtn" style="color:var(--accent);border-color:var(--accent)" onclick="plusOne('${t.id}')">+1</button>`:''}
