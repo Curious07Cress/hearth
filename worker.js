@@ -147,7 +147,8 @@ function systemPrompt(house, actor, tasks, events) {
       const st = taskStatus(t, events, actor);
       const mark = st.done ? `DONE by ${st.by}` : 'OPEN';
       const dayN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-      return `- id:${t.id} | "${t.name}"${t.detail ? ` | standard: ${t.detail}` : ''}${t.due_day != null ? ` | due:${dayN[t.due_day]}s` : ''}${t.window_start || t.window_end ? ` | window:${t.window_start || 'open'}–${t.window_end || 'close'}` : ''} | category:${t.category || ''} | comp:${t.comp || 'duty'} | cadence:${t.cadence || 'daily'}${t.category === 'PERSONAL' ? ' | personal (per-person)' : ''} | [${mark}]`;
+      const stepsTag = Array.isArray(t.steps) && t.steps.length ? ` | steps(${t.steps.length}): ${t.steps.join(' → ')}` : '';
+      return `- id:${t.id} | "${t.name}"${t.detail ? ` | standard: ${t.detail}` : ''}${stepsTag}${t.due_day != null ? ` | due:${dayN[t.due_day]}s` : ''}${t.window_start || t.window_end ? ` | window:${t.window_start || 'open'}–${t.window_end || 'close'}` : ''} | category:${t.category || ''} | comp:${t.comp || 'duty'} | cadence:${t.cadence || 'daily'}${t.category === 'PERSONAL' ? ' | personal (per-person)' : ''} | [${mark}]`;
     })
     .join('\n');
   return `You are Bartleby, the butler of Hearth — a household that is itself alive and has feelings, which you speak for. Hearth is not a chore app; she is a being who wants to be well cared for, and Bartleby is the voice she employs to receive news of the household and gently keep it running.
