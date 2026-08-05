@@ -564,7 +564,7 @@ function renderInner(){
     if(t.countable){
       const n=countWindow(t);
       const who=events.filter(e=>e.task_id===t.id&&e.type==='count'&&e.t>=windowStart(t.cadence||'daily'))[0];
-      return `<div class="task"><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}${todBadge(t)}</div>${t.detail?`<div class="tmeta" style="opacity:.75">${t.detail}</div>`:''}${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n}</span><button onclick="bump('${t.id}')">+</button></div></div>`;
+      return `<div class="task"${preWindow(t)?' style="opacity:.5"':''}><button class="chk" style="border:none;background:var(--accent2);color:#fff;font-size:19px;font-weight:600;cursor:pointer" onclick="bump('${t.id}')">+</button><div style="flex:1"><div class="tname" style="font-weight:500">${t.name}${todBadge(t)}</div>${t.detail?`<div class="tmeta" style="opacity:.75">${t.detail}</div>`:''}${who?`<div class="tmeta"><span class="attr">last: ${actorName(who.actor)} ${tmOnly(who.t)}</span></div>`:''}</div><div class="counter"><span class="n">${n>0?'×'+n:''}</span></div></div>`;
     }
     const done=doneState(t);
     const mine=!t.assigned_to||t.assigned_to===actor;
