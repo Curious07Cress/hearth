@@ -200,7 +200,7 @@ let secOverrides=(()=>{
 })();
 function toggleSec(k){const cur=secOpen(k);secOverrides[k]=!cur;localStorage.setItem('hearth-collapse',JSON.stringify({_day:new Date().toDateString(),map:secOverrides}));render()}
 let secDefaults={};
-function secOpen(k){return k in secOverrides?secOverrides[k]:(secDefaults[k]||false)}
+function secOpen(k){return k in secOverrides?secOverrides[k]:(k.startsWith('cat:')?true:(secDefaults[k]||false))}
 const INITIALS={dad:'E',mom:'C',k1:'S',k2:'Em'};
 const yorkSeason=()=>{const m=new Date().getMonth()+1;return m>=5&&m<=10};
 if(house==='york'&&!yorkSeason())house='westford';
@@ -588,8 +588,18 @@ function renderInner(){
     </div>`;
   }
   function catGroup(ts){
-    let out='',lastCat=null;
-    ts.forEach(t=>{if(t.category&&t.category!==lastCat){out+=`<div class="section-label">${catLabel(t.category)}</div>`;lastCat=t.category}out+=taskCard(t)});
+    // group by category, each subgroup collapsible (state shares the daily-reset store)
+    const groups=[];let cur=null;
+    ts.forEach(t=>{const c=t.category||'OTHER';if(!cur||cur.cat!==c){cur={cat:c,items:[]};groups.push(cur)}cur.items.push(t)});
+    let out='';
+    groups.forEach(g=>{
+      if(!g.items[0].category){g.items.forEach(t=>out+=taskCard(t));return}
+      const key='cat:'+g.cat;
+      const open=key in secOverrides?secOverrides[key]:true;
+      const rem=g.items.filter(t=>!t.countable&&!doneState(t)).length;
+      out+=`<div class="section-label" onclick="toggleSec('${key}')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding-right:2px"><span><span style="display:inline-block;transition:transform .15s;${open?'transform:rotate(90deg)':''}">▶</span> ${catLabel(g.cat)}</span><span style="letter-spacing:0">${rem?rem+' left':'✓'}</span></div>`;
+      if(open)g.items.forEach(t=>out+=taskCard(t));
+    });
     return out;
   }
   if(tab==='webapps'){
