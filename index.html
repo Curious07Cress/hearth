@@ -99,7 +99,16 @@ body.york .task.bounty{background:#fbf7e8}
 .badge{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;color:#c9962e;background:#fff;border:1.5px solid #ecd9a8;border-radius:10px;padding:4px 9px;white-space:nowrap}
 .claimbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:#c9962e;background:#fff;border:1.5px solid #c9962e;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600}
 .gold{color:#c9962e;font-weight:600}
-.sechead{display:flex;align-items:center;gap:10px;margin:14px 16px 4px;padding:12px 14px;background:var(--card2);border:1px solid var(--line);border-radius:14px;cursor:pointer;border-left-width:4px}
+.sechead{display:flex;align-items:center;gap:10px;margin:14px 16px 0;padding:12px 14px;background:var(--card2);border:1px solid var(--line);border-radius:14px 14px 0 0;cursor:pointer;border-left-width:4px}
+.sechead:not(.open){border-radius:14px;margin-bottom:4px}
+.secbody{margin:0 16px 8px;border:1px solid var(--line);border-top:none;border-radius:0 0 14px 14px;overflow:hidden;background:var(--bg)}
+.secbody .task{margin:8px 12px;border-radius:12px}
+.secbody .bandnote{margin:6px 12px 2px;border-radius:8px}
+.secbody .section-label{margin:10px 12px 2px}
+.secbody-personal{border-left:4px solid var(--warn)}
+.secbody-salary{border-left:4px solid var(--ok)}
+.secbody-extras{border-left:4px solid #ecd9a8}
+.secbody-rest{border-left:4px solid var(--line)}
 .sechead.tint-personal{border-left-color:var(--warn);background:color-mix(in srgb,var(--warn) 7%,var(--card2))}
 .sechead.tint-salary{border-left-color:var(--ok);background:color-mix(in srgb,var(--ok) 8%,var(--card2))}
 .sechead.tint-salary .sl{color:var(--ok)}
@@ -200,7 +209,7 @@ let secOverrides=(()=>{
 })();
 function toggleSec(k){const cur=secOpen(k);secOverrides[k]=!cur;localStorage.setItem('hearth-collapse',JSON.stringify({_day:new Date().toDateString(),map:secOverrides}));render()}
 let secDefaults={};
-function secOpen(k){return k in secOverrides?secOverrides[k]:(k.startsWith('cat:')?true:(secDefaults[k]||false))}
+function secOpen(k){return k in secOverrides?secOverrides[k]:(k.startsWith('cat:')?false:(secDefaults[k]||false))}
 const INITIALS={dad:'E',mom:'C',k1:'S',k2:'Em'};
 const yorkSeason=()=>{const m=new Date().getMonth()+1;return m>=5&&m<=10};
 if(house==='york'&&!yorkSeason())house='westford';
@@ -625,8 +634,9 @@ function renderInner(){
     const open=secOpen(key);
     const rem=countStr!==undefined?countStr:(remaining(ts)?remaining(ts)+' left':'✓');
     const tint=key==='personal'?'tint-personal':key==='salary'?'tint-salary':key==='rest'?'tint-rest':'';
+    const bodyClass=key==='personal'?'secbody-personal':key==='salary'?'secbody-salary':key==='extras'?'secbody-extras':key==='rest'?'secbody-rest':'';
     html+=`<div class="sechead ${open?'open':''} ${key==='extras'?'gold':''} ${tint}" onclick="toggleSec('${key}')"><span class="chev">▶</span><span class="sl">${label}</span><span class="sc ${rem==='✓'?'clear':''}">${rem}</span></div>`;
-    if(open)html+=body;
+    if(open)html+=`<div class="secbody ${bodyClass}">${body}</div>`;
   }
   const _sec=section;section=function(k,l,arr,body,cs){if(today&&!arr.length&&k!=='extras')return;_sec(k,l,arr,body,cs)};
   // ---- urgent hoist: time-sensitive today, undone ----
