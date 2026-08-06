@@ -142,7 +142,7 @@ function taskStatus(t, events, actor) {
 function systemPrompt(house, actor, tasks, events) {
   const actorObj = ACTORS.find(a => a.id === actor) || { n: actor, adult: false };
   const taskLines = tasks
-    .filter(t => !t.bounty && t.mission === 'house' && (t.house === 'both' || t.house === house || !t.house))
+    .filter(t => !t.bounty && !t.retired && t.mission === 'house' && (t.house === 'both' || t.house === house || !t.house))
     .map(t => {
       const st = taskStatus(t, events, actor);
       const mark = st.done ? `DONE by ${st.by}` : 'OPEN';
