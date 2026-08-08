@@ -498,7 +498,8 @@ async function postBounty(){
 function visibleTasks(mission){
   return tasks.filter(t=>!t.retired).filter(t=>t.mission===mission)
     .filter(t=>mission!=='house'||(t.house==='both'||t.house===house))
-    .filter(t=>t.audience!=='adult'||isAdult(actor));
+    .filter(t=>t.audience!=='adult'||isAdult(actor))
+    .filter(t=>t.bounty||!t.assigned_to||t.assigned_to===actor||(viewAll&&actor==='dad'));
 }
 function periodRange(){
   const now=new Date();
