@@ -636,7 +636,7 @@ function renderInner(){
   const _sec=section;section=function(k,l,arr,body,cs){if(today&&!arr.length&&k!=='extras')return;_sec(k,l,arr,body,cs)};
   // ---- urgent hoist: time-sensitive today, undone ----
   const urgentIds=new Set();
-  const urgent=today?list.filter(t=>t.window_end&&!t.countable&&t.anchor!=='asneeded'&&!doneState(t)):[];
+  const urgent=today?list.filter(t=>t.window_end&&!t.countable&&t.anchor!=='asneeded'&&!doneState(t)&&!preWindow(t)):[];
   urgent.forEach(t=>urgentIds.add(t.id));
   const perF=per.filter(t=>!urgentIds.has(t.id)),salF=sal.filter(t=>!urgentIds.has(t.id)),dailyF=daily.filter(t=>!urgentIds.has(t.id));
   const upkeep=[...weekly,...periodic].filter(t=>!urgentIds.has(t.id));
